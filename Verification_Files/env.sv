@@ -1,0 +1,39 @@
+`ifndef ENV_SVH
+`define ENV_SVH
+`include "uvm_macros.svh"
+`include "agent.sv"
+`include "scoreboard.sv"
+`include "coverage.sv"
+import uvm_pkg::*;
+class env extends uvm_env;
+    agent agent_;
+    scoreboard scoreboard_;
+    coverage_ coverage__;  
+    `uvm_component_utils(env)
+    
+    function new(string name= "env", uvm_component parent = null);
+        super.new(name, parent);
+        `uvm_info(get_type_name(), "Environment constructor - UVM_LOW verbosity message", UVM_LOW)
+        `uvm_info(get_type_name(), "Environment constructor - UVM_MEDIUM verbosity message", UVM_MEDIUM)
+        `uvm_info(get_type_name(), "Environment constructor - UVM_HIGH verbosity message", UVM_HIGH)
+        `uvm_info(get_type_name(), "Environment constructor - UVM_FULL verbosity message", UVM_FULL) 
+    endfunction
+
+    function void build_phase(uvm_phase phase);
+        super.build_phase(phase);
+        agent_ = agent::type_id::create("agent_", this);
+        scoreboard_ = scoreboard::type_id::create("scoreboard_", this);
+        coverage__ = coverage_::type_id::create("coverage_", this);
+        `uvm_info(get_type_name(), "env build phase - UVM_LOW", UVM_LOW)
+        `uvm_info(get_type_name(), "env build phase - UVM_MEDIUM", UVM_MEDIUM)
+        `uvm_info(get_type_name(), "env build phase - UVM_HIGH", UVM_HIGH)
+        `uvm_info(get_type_name(), "env build phase - UVM_FULL", UVM_FULL)
+    endfunction
+
+    function void connect_phase (uvm_phase phase);
+        super.connect_phase(phase);
+        
+    endfunction
+endclass
+`endif
+
