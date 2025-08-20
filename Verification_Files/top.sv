@@ -3,29 +3,49 @@
 import package_::*;
 import uvm_pkg::*;
 module top;
-    intf vif();
+    
+    localparam int DATA_WIDTH = 32;
+    localparam int ADDR_WIDTH = 16;
 
-    router DUT (
-        .clk        (vif.clk),
-        .rst_n      (vif.rst_n),
-        .data_in0   (vif.data_in0),
-        .data_in1   (vif.data_in1),
-        .data_in2   (vif.data_in2),
-        .data_in3   (vif.data_in3),
-        .valid_in0  (vif.valid_in0),
-        .valid_in1  (vif.valid_in1),
-        .valid_in2  (vif.valid_in2),
-        .valid_in3  (vif.valid_in3),
-        .data_out0  (vif.data_out0),
-        .data_out1  (vif.data_out1),
-        .valid_out0 (vif.valid_out0),
-        .valid_out1 (vif.valid_out1)
+    intf #(DATA_WIDTH, ADDR_WIDTH) vif();
+
+    axi4 #(.DATA_WIDTH(DATA_WIDTH), .ADDR_WIDTH(ADDR_WIDTH)) dut (
+        .ACLK    (vif.ACLK),
+        .ARESETn (vif.ARESETn),
+        .AWADDR  (vif.actual_AWADDR),
+        .AWLEN   (vif.actual_AWLEN),
+        .AWSIZE  (vif.actual_AWSIZE),
+        .AWVALID (vif.actual_AWVALID),
+        .AWREADY (vif.actual_AWREADY),
+        .WDATA   (vif.actual_WDATA),
+        .WLAST   (vif.actual_WLAST),
+        .WVALID  (vif.actual_WVALID),
+        .WREADY  (vif.actual_WREADY),
+        .BRESP   (vif.actual_BRESP),
+        .BVALID  (vif.actual_BVALID),
+        .BREADY  (vif.actual_BREADY),
+        .ARADDR  (vif.actual_ARADDR),
+        .ARLEN   (vif.actual_ARLEN),
+        .ARSIZE  (vif.actual_ARSIZE),
+        .ARVALID (vif.actual_ARVALID),
+        .ARREADY (vif.actual_ARREADY),
+        .RDATA   (vif.actual_RDATA),
+        .RRESP   (vif.actual_RRESP),
+        .RLAST   (vif.actual_RLAST),
+        .RVALID  (vif.actual_RVALID),
+        .RREADY  (vif.actual_RREADY)
     );
+
+    initial begin
+        vif.ARESETn = 0;
+        #2ns 
+        vif.ARESETn = 1;
+    end
     
     initial begin 
-        vif.clk=0;
+        vif.ACLK=0;
         forever begin
-            #2ns vif.clk = ~ vif.clk;
+            #2ns vif.ACLK = ~ vif.ACLK;
         end
     end
 

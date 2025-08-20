@@ -9,4 +9,5 @@ package package_;
     `include "agent.sv"
     `include "env.sv"
     `include "test.sv"
+    `include "common_cfg.sv"
 endpackage

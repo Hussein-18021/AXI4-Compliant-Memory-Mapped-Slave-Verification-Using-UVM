@@ -13,10 +13,6 @@ class env extends uvm_env;
     
     function new(string name= "env", uvm_component parent = null);
         super.new(name, parent);
-        `uvm_info(get_type_name(), "Environment constructor - UVM_LOW verbosity message", UVM_LOW)
-        `uvm_info(get_type_name(), "Environment constructor - UVM_MEDIUM verbosity message", UVM_MEDIUM)
-        `uvm_info(get_type_name(), "Environment constructor - UVM_HIGH verbosity message", UVM_HIGH)
-        `uvm_info(get_type_name(), "Environment constructor - UVM_FULL verbosity message", UVM_FULL) 
     endfunction
 
     function void build_phase(uvm_phase phase);
@@ -24,15 +20,12 @@ class env extends uvm_env;
         agent_ = agent::type_id::create("agent_", this);
         scoreboard_ = scoreboard::type_id::create("scoreboard_", this);
         coverage__ = coverage_::type_id::create("coverage_", this);
-        `uvm_info(get_type_name(), "env build phase - UVM_LOW", UVM_LOW)
         `uvm_info(get_type_name(), "env build phase - UVM_MEDIUM", UVM_MEDIUM)
-        `uvm_info(get_type_name(), "env build phase - UVM_HIGH", UVM_HIGH)
-        `uvm_info(get_type_name(), "env build phase - UVM_FULL", UVM_FULL)
     endfunction
 
     function void connect_phase (uvm_phase phase);
         super.connect_phase(phase);
-        
+        agent_.monitor_.ap.connect(scoreboard_.analysis_export);
     endfunction
 endclass
 `endif

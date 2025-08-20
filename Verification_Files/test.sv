@@ -3,28 +3,33 @@
 `include "uvm_macros.svh"
 `include "env.sv"
 `include "sequence.sv"
+`include "common_cfg.sv"
 import uvm_pkg::*;
 class test extends uvm_test;
+    
+    common_cfg m_cfg;
     env env_;
     _sequence seq;
+    
     `uvm_component_utils(test)
     
     function new(string name= "test", uvm_component parent = null);
         super.new(name, parent);
-        `uvm_info(get_type_name(), "Test constructor - UVM_LOW verbosity message", UVM_LOW)
-        `uvm_info(get_type_name(), "Test constructor - UVM_MEDIUM verbosity message", UVM_MEDIUM)
-        `uvm_info(get_type_name(), "Test constructor - UVM_HIGH verbosity message", UVM_HIGH)
-        `uvm_info(get_type_name(), "Test constructor - UVM_FULL verbosity message", UVM_FULL)
     endfunction
 
     function void build_phase(uvm_phase phase);
         super.build_phase(phase);
         env_ = env::type_id::create("env", this); 
         seq = _sequence::type_id::create("seq");
-        `uvm_info(get_type_name(), "Test build phase - UVM_LOW", UVM_LOW)
+        m_cfg = common_cfg::type_id::create("m_cfg");
+        
         `uvm_info(get_type_name(), "Test build phase - UVM_MEDIUM", UVM_MEDIUM)
-        `uvm_info(get_type_name(), "Test build phase - UVM_HIGH", UVM_HIGH)
-        `uvm_info(get_type_name(), "Test build phase - UVM_FULL", UVM_FULL)
+        uvm_config_db#(common_cfg)::set(this, "*", "m_cfg", m_cfg);
+    endfunction
+
+    function void end_of_elaboration_phase(uvm_phase phase);
+        super.end_of_elaboration_phase(phase);
+        uvm_top.print_topology();
     endfunction
 
     task run_phase (uvm_phase phase);
