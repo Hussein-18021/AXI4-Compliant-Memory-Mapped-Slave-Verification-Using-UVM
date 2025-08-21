@@ -12,28 +12,28 @@ module top;
     axi4 #(.DATA_WIDTH(DATA_WIDTH), .ADDR_WIDTH(ADDR_WIDTH)) dut (
         .ACLK    (vif.ACLK),
         .ARESETn (vif.ARESETn),
-        .AWADDR  (vif.actual_AWADDR),
-        .AWLEN   (vif.actual_AWLEN),
-        .AWSIZE  (vif.actual_AWSIZE),
-        .AWVALID (vif.actual_AWVALID),
-        .AWREADY (vif.actual_AWREADY),
-        .WDATA   (vif.actual_WDATA),
-        .WLAST   (vif.actual_WLAST),
-        .WVALID  (vif.actual_WVALID),
-        .WREADY  (vif.actual_WREADY),
-        .BRESP   (vif.actual_BRESP),
-        .BVALID  (vif.actual_BVALID),
-        .BREADY  (vif.actual_BREADY),
-        .ARADDR  (vif.actual_ARADDR),
-        .ARLEN   (vif.actual_ARLEN),
-        .ARSIZE  (vif.actual_ARSIZE),
-        .ARVALID (vif.actual_ARVALID),
-        .ARREADY (vif.actual_ARREADY),
-        .RDATA   (vif.actual_RDATA),
-        .RRESP   (vif.actual_RRESP),
-        .RLAST   (vif.actual_RLAST),
-        .RVALID  (vif.actual_RVALID),
-        .RREADY  (vif.actual_RREADY)
+        .AWADDR  (vif.AWADDR),
+        .AWLEN   (vif.AWLEN),
+        .AWSIZE  (vif.AWSIZE),
+        .AWVALID (vif.AWVALID),
+        .AWREADY (vif.AWREADY),
+        .WDATA   (vif.WDATA),
+        .WLAST   (vif.WLAST),
+        .WVALID  (vif.WVALID),
+        .WREADY  (vif.WREADY),
+        .BRESP   (vif.BRESP),
+        .BVALID  (vif.BVALID),
+        .BREADY  (vif.BREADY),
+        .ARADDR  (vif.ARADDR),
+        .ARLEN   (vif.ARLEN),
+        .ARSIZE  (vif.ARSIZE),
+        .ARVALID (vif.ARVALID),
+        .ARREADY (vif.ARREADY),
+        .RDATA   (vif.RDATA),
+        .RRESP   (vif.RRESP),
+        .RLAST   (vif.RLAST),
+        .RVALID  (vif.RVALID),
+        .RREADY  (vif.RREADY)
     );
 
     initial begin
@@ -52,6 +52,8 @@ module top;
     initial begin
         uvm_config_db #(uvm_active_passive_enum)::set(null, "uvm_test_top.env.agent_", "is_active", UVM_ACTIVE);
         uvm_config_db #(virtual intf)::set(null, "uvm_test_top.env.agent_.*", "intf", vif);
+        uvm_config_db #(virtual intf)::set(null, "uvm_test_top.env.scoreboard_", "intf", vif);
+
         run_test("test");
     end
 

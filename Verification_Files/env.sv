@@ -18,7 +18,7 @@ class env extends uvm_env;
     function void build_phase(uvm_phase phase);
         super.build_phase(phase);
         agent_ = agent::type_id::create("agent_", this);
-        scoreboard_ = scoreboard::type_id::create("scoreboard_", this);
+        scoreboard_ = scoreboard#(32,16,1024)::type_id::create("scoreboard_", this);
         coverage__ = coverage_::type_id::create("coverage_", this);
         `uvm_info(get_type_name(), "env build phase - UVM_MEDIUM", UVM_MEDIUM)
     endfunction
@@ -26,6 +26,7 @@ class env extends uvm_env;
     function void connect_phase (uvm_phase phase);
         super.connect_phase(phase);
         agent_.monitor_.ap.connect(scoreboard_.analysis_export);
+        agent_.monitor_.ap.connect(coverage__.analysis_export);
     endfunction
 endclass
 `endif
