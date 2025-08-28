@@ -1,21 +1,23 @@
-`ifndef scoreboard_SVH
-`define scoreboard_SVH
+`ifndef SCOREBOARD_SVH
+`define SCOREBOARD_SVH
 `include "uvm_macros.svh"
 `include "transaction.sv"
 import uvm_pkg::*;
 
-class scoreboard #(parameter int DATA_WIDTH = 32, parameter int ADDR_WIDTH = 16, parameter int MEMORY_DEPTH = 1024) extends uvm_scoreboard;
+class scoreboard #(int DATA_WIDTH = 32, int ADDR_WIDTH = 16, int MEMORY_DEPTH = 1024) extends uvm_scoreboard;
     `uvm_component_utils(scoreboard)
+    typedef transaction#(32, 16, 1024) transaction_t;
 
-    uvm_analysis_export #(transaction) analysis_export;
-    uvm_tlm_analysis_fifo #(transaction) fifo;
+    uvm_analysis_export #(transaction_t) analysis_export;
+    uvm_tlm_analysis_fifo #(transaction_t) fifo;
     virtual intf vif;
-    
     logic [DATA_WIDTH-1:0] golden_memory [MEMORY_DEPTH];
 
     int error_count, pass_count, total_tests;
     int okay_count, slverr_count;
     int write_count, read_count;
+    int boundary_crossing_count, memory_violation_count;
+    int aborted_transaction_count, normal_transaction_count;
 
     function new(string name= "scoreboard", uvm_component parent = null);
         super.new(name, parent);
@@ -27,8 +29,11 @@ class scoreboard #(parameter int DATA_WIDTH = 32, parameter int ADDR_WIDTH = 16,
         slverr_count  = 0;
         write_count   = 0;
         read_count    = 0;
+        boundary_crossing_count = 0;
+        memory_violation_count = 0;
+        aborted_transaction_count = 0;
+        normal_transaction_count = 0;
 
-        // Initialize golden memory to known pattern
         for (int i = 0; i < 1024; i++) begin
             golden_memory[i] = 32'h00000000;
         end
@@ -36,7 +41,7 @@ class scoreboard #(parameter int DATA_WIDTH = 32, parameter int ADDR_WIDTH = 16,
         analysis_export = new("analysis_export", this);
         fifo = new("fifo", this);
         
-        `uvm_info(get_type_name(), "Scoreboard created", UVM_MEDIUM)
+        `uvm_info(get_type_name(), "Scoreboard created with transaction_t support", UVM_MEDIUM)
     endfunction
 
     function void build_phase(uvm_phase phase);
@@ -45,7 +50,7 @@ class scoreboard #(parameter int DATA_WIDTH = 32, parameter int ADDR_WIDTH = 16,
         if(!uvm_config_db#(virtual intf)::get(this, "", "intf", vif))
             `uvm_fatal(get_full_name(), "Virtual interface must be set for scoreboard");    
         
-        `uvm_info(get_type_name(), "scoreboard build phase - UVM_MEDIUM", UVM_MEDIUM)
+        `uvm_info(get_type_name(), "Scoreboard build phase - UVM_MEDIUM", UVM_MEDIUM)
     endfunction
 
     function void connect_phase(uvm_phase phase);
@@ -53,306 +58,285 @@ class scoreboard #(parameter int DATA_WIDTH = 32, parameter int ADDR_WIDTH = 16,
     endfunction
 
     task run_phase(uvm_phase phase);
-        transaction#() req;
+        transaction_t req;
         forever begin
             fifo.get(req);
+            total_tests++;
             generate_golden_model(req);
             case(req.OP)
-                transaction#()::WRITE:   check_write(req);
-                transaction#()::read:    check_read(req);
-                default:   `uvm_warning("SCOREBOARD", $sformatf("Unknown OP: %s", req.OP))
+                transaction_t::WRITE: begin
+                    write_count++;
+                    check_write(req);
+                end
+                transaction_t::READ: begin
+                    read_count++;
+                    check_read(req);
+                end
+                default: `uvm_error("SCOREBOARD", $sformatf("Unknown OP: %s", req.OP.name()))
             endcase
         end
     endtask
     
-    function void generate_golden_model(transaction req);
-        if (req.OP == transaction#()::WRITE) 
-            begin
-                generate_write_golden_model(req);
-            end 
-        else if (req.OP == transaction#()::read) 
-            begin
-                generate_read_golden_model(req);
-            end
+    function void generate_golden_model(transaction_t req);
+        `uvm_info("GOLDEN", $sformatf("Generating golden model for %s transaction", req.OP.name()), UVM_HIGH)
         
-        `uvm_info("GOLDEN", $sformatf("Golden model generated for %s operation", req.OP.name()), UVM_HIGH)
+        case(req.OP)
+            transaction_t::WRITE: generate_write_golden(req);
+            transaction_t::READ: generate_read_golden(req);
+            default: `uvm_error("GOLDEN", $sformatf("Unknown operation: %s", req.OP.name()))
+        endcase
     endfunction
 
-    function void generate_write_golden_model(transaction req);
-        int word_addr;
-        int burst_size_bytes;
+    function void generate_write_golden(transaction_t req);
+        logic [ADDR_WIDTH-1:0] current_addr;
+        logic [31:0] word_addr;
+        int burst_size;
+        bit boundary_cross, addr_valid;
         
-        vif.expected_AWADDR  = req.AWADDR;
-        vif.expected_AWLEN   = req.AWLEN;
-        vif.expected_AWSIZE  = req.AWSIZE;
-        vif.expected_AWVALID = req.AWVALID;
-        vif.expected_AWREADY = 1'b1;        
+        current_addr = req.AWADDR;
+        burst_size = (1 << req.AWSIZE);
         
-        // Store expected data in interface arrays
-        vif.expected_WDATA = new[req.WDATA.size()];
-        for (int i = 0; i < req.WDATA.size(); i++) 
-            begin
-                vif.expected_WDATA[i] = req.WDATA[i];
-            end
+        // Check for boundary crossing (4KB boundary)
+        boundary_cross = ((current_addr & 12'hFFF) + ((req.AWLEN + 1) << req.AWSIZE)) > 12'hFFF;
+        
+        // Check address validity
+        addr_valid = (current_addr >> 2) < MEMORY_DEPTH;
+        
+        `uvm_info("GOLDEN_WRITE", $sformatf("ADDR=0x%h, LEN=%0d, boundary_cross=%0b, addr_valid=%0b", 
+                current_addr, req.AWLEN, boundary_cross, addr_valid), UVM_MEDIUM)
+        
+        // Set expected response
+        if (!addr_valid || boundary_cross) begin
+            req.expected_BRESP = 2'b10; // SLVERR
+            slverr_count++;
+            if (boundary_cross) boundary_crossing_count++;
+            if (!addr_valid) memory_violation_count++;
+            aborted_transaction_count++;
+        end else begin
+            req.expected_BRESP = 2'b00; // OKAY
+            okay_count++;
+            normal_transaction_count++;
             
-        vif.expected_WVALID = req.WVALID;
-        vif.expected_WREADY = 1'b1;
-        
-        if (req.exceeds_memory_range()) 
-            begin
-                vif.expected_BRESP = 2'b10;
-                `uvm_info("GOLDEN", $sformatf("WRITE exceeds memory range - expecting SLVERR"), UVM_MEDIUM)
-            end 
-        else if (req.crosses_4KB_boundary()) 
-            begin
-                vif.expected_BRESP = 2'b10;
-                `uvm_info("GOLDEN", $sformatf("WRITE crosses 4KB boundary - expecting SLVERR"), UVM_MEDIUM)
-            end 
-        else 
-            begin
-                vif.expected_BRESP = 2'b00;
-                update_golden_memory_write(req);
-                `uvm_info("GOLDEN", $sformatf("WRITE within bounds - expecting OKAY"), UVM_MEDIUM)
-            end
-        
-        vif.expected_BVALID = 1'b1;
-        vif.expected_BREADY = req.BREADY;
-    endfunction
-
-    function void generate_read_golden_model(transaction req);
-        int word_addr;
-        
-        vif.expected_ARADDR  = req.ARADDR;
-        vif.expected_ARLEN   = req.ARLEN;
-        vif.expected_ARSIZE  = req.ARSIZE;
-        vif.expected_ARVALID = req.ARVALID;
-        vif.expected_ARREADY = 1'b1;        
-        
-        // Store expected data in interface arrays
-        vif.expected_RDATA = new[req.ARLEN + 1];
-        
-        if (req.exceeds_memory_range()) 
-            begin
-                vif.expected_RRESP = 2'b10;
-                for (int i = 0; i <= req.ARLEN; i++) 
-                    begin
-                        vif.expected_RDATA[i] = 32'hDEADBEEF;  // Error pattern
-                    end
-                `uvm_info("GOLDEN", $sformatf("READ exceeds memory range - expecting SLVERR"), UVM_MEDIUM)
-            end 
-        
-        else if (req.crosses_4KB_boundary()) 
-            begin
-                vif.expected_RRESP = 2'b10;  
-                for (int i = 0; i <= req.ARLEN; i++) 
-                    begin
-                        vif.expected_RDATA[i] = 32'hDEADBEEF;
-                    end
-                `uvm_info("GOLDEN", $sformatf("READ crosses 4KB boundary - expecting SLVERR"), UVM_MEDIUM)
-            end 
-        
-        else 
-            begin
-                vif.expected_RRESP = 2'b00; 
-                generate_golden_memory_read(req);
-                `uvm_info("GOLDEN", $sformatf("READ within bounds - expecting OKAY"), UVM_MEDIUM)
-            end
-        
-        vif.expected_RVALID = 1'b1;
-        vif.expected_RLAST  = 1'b1;
-        vif.expected_RREADY = req.RREADY;
-    endfunction
-
-    function void update_golden_memory_write(transaction req);
-        int word_addr = req.AWADDR >> 2;
-        int burst_length = req.AWLEN + 1;
-        int end_word_addr = word_addr + burst_length - 1;
-        
-        `uvm_info("GOLDEN", $sformatf("Updating golden memory: start_addr=0x%0h, word_addr=%0d, len=%0d", 
-                req.AWADDR, word_addr, req.AWLEN), UVM_HIGH)
-        
-        if (word_addr < 0 || end_word_addr >= MEMORY_DEPTH) begin
-            `uvm_error("GOLDEN", $sformatf("Golden memory burst out of bounds: start=%0d, end=%0d, depth=%0d", 
-                    word_addr, end_word_addr, MEMORY_DEPTH))
-            return;
-        end
-        
-        for (int i = 0; i < burst_length; i++) begin
-            golden_memory[word_addr + i] = req.WDATA[i];
-            `uvm_info("GOLDEN", $sformatf("golden_memory[%0d] = 0x%0h", 
-                    word_addr + i, req.WDATA[i]), UVM_HIGH)
-        end
-    endfunction
-
-    function void generate_golden_memory_read(transaction req);
-        int word_addr = req.ARADDR >> 2;
-        
-        `uvm_info("GOLDEN", $sformatf("Reading from golden memory: start_addr=0x%0h, word_addr=%0d, len=%0d", 
-                  req.ARADDR, word_addr, req.ARLEN), UVM_HIGH)
-        
-        for (int i = 0; i <= req.ARLEN; i++) begin
-            if ((word_addr + i) < 1024) 
-                begin  
-                    vif.expected_RDATA[i] = golden_memory[word_addr + i];
-                    `uvm_info("GOLDEN", $sformatf("expected_RDATA[%0d] = golden_memory[%0d] = 0x%0h", 
-                            i, word_addr + i, golden_memory[word_addr + i]), UVM_HIGH)
-                end 
-            else 
-                begin
-                    vif.expected_RDATA[i] = 32'h00000000;  // Default for out of bounds
-                    `uvm_warning("GOLDEN", $sformatf("Reading beyond golden memory bounds: addr=%0d", word_addr + i))
+            // Update golden memory for valid writes
+            foreach(req.WDATA[i]) begin
+                word_addr = current_addr >> 2;
+                if (word_addr < MEMORY_DEPTH) begin
+                    golden_memory[word_addr] = req.WDATA[i];
+                    `uvm_info("GOLDEN_WRITE", $sformatf("Writing 0x%h to address 0x%h (word_addr=%0d)", 
+                            req.WDATA[i], current_addr, word_addr), UVM_HIGH)
                 end
+                current_addr += burst_size;
+            end
         end
+        
+        req.expected_BVALID = 1'b1;
+        req.expected_AWREADY = 1'b1;
+        req.expected_WREADY = 1'b1;
     endfunction
 
-    task check_write(transaction req);
-        bit pass = 1;
-        write_count++;
-
-        `uvm_info("CHECK_WRITE", $sformatf("Checking WRITE: ADDR=0x%0h, LEN=%0d, WDATA.size=%0d", 
-                  req.AWADDR, req.AWLEN, req.WDATA.size()), UVM_MEDIUM)
-
-        if (vif.expected_AWADDR !== req.AWADDR) begin
-            `uvm_error("WRITE_CHECK", $sformatf("AWADDR mismatch: expected=0x%0h actual=0x%0h",
-                      vif.expected_AWADDR, req.AWADDR))
-            pass = 0;
-        end
-
-        if (vif.expected_AWLEN !== req.AWLEN) begin
-            `uvm_error("WRITE_CHECK", $sformatf("AWLEN mismatch: expected=%0d actual=%0d",
-                      vif.expected_AWLEN, req.AWLEN))
-            pass = 0;
-        end
-
-        // Compare using interface expected data arrays
-        if (vif.expected_WDATA.size() != req.WDATA.size()) 
-            begin
-                `uvm_error("WRITE_CHECK", $sformatf("WDATA SIZE mismatch: expected=%0d actual=%0d",
-                        vif.expected_WDATA.size(), req.WDATA.size()))
-                pass = 0;
-            end 
-        else 
-            begin
-                for (int i = 0; i < req.WDATA.size(); i++) begin
-                    if (vif.expected_WDATA[i] !== req.WDATA[i]) begin
-                        `uvm_error("WRITE_CHECK", $sformatf("WDATA[%0d] mismatch: expected=0x%0h actual=0x%0h",
-                                i, vif.expected_WDATA[i], req.WDATA[i]))
-                        pass = 0;
-                    end
-                end
-            end
-
-        if (vif.expected_BRESP !== req.BRESP) begin
-            `uvm_error("WRITE_CHECK", $sformatf("BRESP mismatch: expected=%0b actual=%0b",
-                      vif.expected_BRESP, req.BRESP))
-            pass = 0;
-        end
-
-        if (req.BRESP == 2'b00) 
-            okay_count++;
-        else if (req.BRESP == 2'b10) 
+    function void generate_read_golden(transaction_t req);
+        logic [ADDR_WIDTH-1:0] current_addr;
+        logic [31:0] word_addr;
+        int burst_size;
+        bit boundary_cross, addr_valid;
+        int burst_length;
+        
+        current_addr = req.ARADDR;
+        burst_size = (1 << req.ARSIZE);
+        burst_length = req.ARLEN + 1;
+        
+        // Check for boundary crossing (4KB boundary)
+        boundary_cross = ((current_addr & 12'hFFF) + ((req.ARLEN + 1) << req.ARSIZE)) > 12'hFFF;
+        
+        // Check address validity
+        addr_valid = (current_addr >> 2) < MEMORY_DEPTH;
+        
+        `uvm_info("GOLDEN_READ", $sformatf("ADDR=0x%h, LEN=%0d, boundary_cross=%0b, addr_valid=%0b", 
+                current_addr, req.ARLEN, boundary_cross, addr_valid), UVM_MEDIUM)
+        
+        // Allocate expected data array
+        req.expected_RDATA = new[burst_length];
+        
+        if (!addr_valid || boundary_cross) begin
+            req.expected_RRESP = 2'b10; // SLVERR
             slverr_count++;
+            if (boundary_cross) boundary_crossing_count++;
+            if (!addr_valid) memory_violation_count++;
+            aborted_transaction_count++;
+            
+            // Fill with zeros for error case
+            foreach(req.expected_RDATA[i]) begin
+                req.expected_RDATA[i] = 32'h00000000;
+            end
+        end else begin
+            req.expected_RRESP = 2'b00; // OKAY
+            okay_count++;
+            normal_transaction_count++;
+            
+            // Read from golden memory for valid reads
+            foreach(req.expected_RDATA[i]) begin
+                word_addr = current_addr >> 2;
+                if (word_addr < MEMORY_DEPTH) begin
+                    req.expected_RDATA[i] = golden_memory[word_addr];
+                    `uvm_info("GOLDEN_READ", $sformatf("Reading 0x%h from address 0x%h (word_addr=%0d)", 
+                            req.expected_RDATA[i], current_addr, word_addr), UVM_HIGH)
+                end else begin
+                    req.expected_RDATA[i] = 32'h00000000;
+                end
+                current_addr += burst_size;
+            end
+        end
+        
+        req.expected_RVALID = 1'b1;
+        req.expected_RLAST = 1'b1;
+        req.expected_ARREADY = 1'b1;
+    endfunction
 
-        update_result(pass, "WRITE");
+    function void check_write(transaction_t req);
+        bit pass = 1'b1;
+        string error_msg = "";
+        
+        `uvm_info("CHECK_WRITE", $sformatf("Checking write: ADDR=0x%h, expected_BRESP=%0d, actual_BRESP=%0d", 
+                req.AWADDR, req.expected_BRESP, req.BRESP), UVM_MEDIUM)
+        
+        // Check write response
+        if (req.BRESP !== req.expected_BRESP) begin
+            pass = 1'b0;
+            error_msg = $sformatf("BRESP mismatch: expected=0x%h, actual=0x%h", req.expected_BRESP, req.BRESP);
+        end
+        
+        // Additional checks for handshaking signals would go here if needed
         
         if (pass) begin
-            `uvm_info("WRITE_CHECK", "WRITE transaction PASSED", UVM_MEDIUM)
-        end else begin
-            `uvm_error("WRITE_CHECK", "WRITE transaction FAILED")
-        end
-    endtask
-
-    task check_read(transaction req);
-        bit pass = 1;
-        read_count++;
-
-        `uvm_info("CHECK_READ", $sformatf("Checking READ: ADDR=0x%0h, LEN=%0d, RDATA.size=%0d", 
-                  req.ARADDR, req.ARLEN, req.RDATA.size()), UVM_MEDIUM)
-
-        if (vif.expected_ARADDR !== req.ARADDR) begin
-            `uvm_error("read_CHECK", $sformatf("ARADDR mismatch: expected=0x%0h actual=0x%0h",
-                      vif.expected_ARADDR, req.ARADDR))
-            pass = 0;
-        end
-
-        if (vif.expected_ARLEN !== req.ARLEN) begin
-            `uvm_error("read_CHECK", $sformatf("ARLEN mismatch: expected=%0d actual=%0d",
-                      vif.expected_ARLEN, req.ARLEN))
-            pass = 0;
-        end
-
-        if (vif.expected_RRESP !== req.RRESP) begin
-            `uvm_error("read_CHECK", $sformatf("RRESP mismatch: expected=%0b actual=%0b",
-                      vif.expected_RRESP, req.RRESP))
-            pass = 0;
-        end
-
-        // Compare using interface expected data arrays
-        if (req.RRESP == 2'b00 && vif.expected_RRESP == 2'b00) 
-            begin
-                if (vif.expected_RDATA.size() != req.RDATA.size()) 
-                    begin
-                        `uvm_error("read_CHECK", $sformatf("RDATA size mismatch: expected=%0d actual=%0d",
-                                vif.expected_RDATA.size(), req.RDATA.size()))
-                        pass = 0;
-                    end 
-                else 
-                    begin
-                        for (int i = 0; i < req.RDATA.size(); i++) begin
-                            if (vif.expected_RDATA[i] !== req.RDATA[i]) begin
-                                `uvm_error("read_CHECK", $sformatf("RDATA[%0d] mismatch: expected=0x%0h actual=0x%0h",
-                                        i, vif.expected_RDATA[i], req.RDATA[i]))
-                                pass = 0;
-                            end
-                        end
-                    end
-            end
-
-        if (req.RRESP == 2'b00) 
-            okay_count++;
-        else if (req.RRESP == 2'b10) 
-            slverr_count++;
-
-        update_result(pass, "READ");
-        
-        if (pass) begin
-            `uvm_info("read_CHECK", "READ transaction PASSED", UVM_MEDIUM)
-        end else begin
-            `uvm_error("read_CHECK", "READ transaction FAILED")
-        end
-    endtask
-
-    function void update_result(bit pass, string op);
-        total_tests++;
-        if(pass) begin
             pass_count++;
-            `uvm_info("SCOREBOARD", $sformatf("%s TEST PASS (Total: %0d/%0d)", op, pass_count, total_tests), UVM_LOW)
+            `uvm_info("SCOREBOARD", $sformatf("WRITE TEST PASS: ADDR=0x%h, BRESP=%s", 
+                    req.AWADDR, decode_resp(req.BRESP)), UVM_LOW)
         end else begin
             error_count++;
-            `uvm_error("SCOREBOARD", $sformatf("%s TEST FAIL (Errors: %0d/%0d)", op, error_count, total_tests))
+            `uvm_error("SCOREBOARD", $sformatf("WRITE TEST FAIL: ADDR=0x%h, %s", req.AWADDR, error_msg))
         end
+    endfunction
+
+    function void check_read(transaction_t req);
+        bit pass = 1'b1;
+        string error_msg = "";
+        
+        `uvm_info("CHECK_READ", $sformatf("Checking read: ADDR=0x%h, expected_RRESP=%0d, actual_RRESP=%0d", 
+                req.ARADDR, req.expected_RRESP, req.RRESP), UVM_MEDIUM)
+        
+        // Check read response
+        if (req.RRESP !== req.expected_RRESP) begin
+            pass = 1'b0;
+            error_msg = $sformatf("RRESP mismatch: expected=0x%h, actual=0x%h", req.expected_RRESP, req.RRESP);
+        end
+        
+        // Check read data for valid transactions
+        if (req.expected_RRESP == 2'b00 && req.RRESP == 2'b00) begin
+            if (req.RDATA.size() != req.expected_RDATA.size()) begin
+                pass = 1'b0;
+                error_msg = {error_msg, $sformatf(" | RDATA size mismatch: expected=%0d, actual=%0d", 
+                            req.expected_RDATA.size(), req.RDATA.size())};
+            end else begin
+                foreach(req.RDATA[i]) begin
+                    if (req.RDATA[i] !== req.expected_RDATA[i]) begin
+                        pass = 1'b0;
+                        error_msg = {error_msg, $sformatf(" | RDATA[%0d] mismatch: expected=0x%h, actual=0x%h", 
+                                    i, req.expected_RDATA[i], req.RDATA[i])};
+                        break; // Report only first mismatch to avoid log flooding
+                    end
+                end
+            end
+        end
+        
+        if (pass) begin
+            pass_count++;
+            `uvm_info("SCOREBOARD", $sformatf("READ TEST PASS: ADDR=0x%h, RRESP=%s, beats=%0d", 
+                    req.ARADDR, decode_resp(req.RRESP), req.RDATA.size()), UVM_LOW)
+        end else begin
+            error_count++;
+            `uvm_error("SCOREBOARD", $sformatf("READ TEST FAIL: ADDR=0x%h, %s", req.ARADDR, error_msg))
+        end
+    endfunction
+
+    function string decode_resp(logic [1:0] resp);
+        case(resp)
+            2'b00: return "OKAY";
+            2'b01: return "EXOKAY";
+            2'b10: return "SLVERR";
+            2'b11: return "DECERR";
+            default: return "UNKNOWN";
+        endcase
     endfunction
 
     function void extract_phase(uvm_phase phase);
-        `uvm_info("SCOREBOARD", "=== FINAL SCOREBOARD REPORT ===", UVM_LOW)
-        `uvm_info("SCOREBOARD", $sformatf("TOTAL TESTS   = %0d", total_tests), UVM_LOW)
-        `uvm_info("SCOREBOARD", $sformatf("PASS COUNT    = %0d", pass_count), UVM_LOW)
-        `uvm_info("SCOREBOARD", $sformatf("ERROR COUNT   = %0d", error_count), UVM_LOW)
-        `uvm_info("SCOREBOARD", $sformatf("WRITE COUNT   = %0d", write_count), UVM_LOW)
-        `uvm_info("SCOREBOARD", $sformatf("READ COUNT    = %0d", read_count), UVM_LOW)
-        `uvm_info("SCOREBOARD", $sformatf("OKAY COUNT    = %0d", okay_count), UVM_LOW)
-        `uvm_info("SCOREBOARD", $sformatf("SLVERR COUNT  = %0d", slverr_count), UVM_LOW)
+        real pass_rate = (total_tests > 0) ? (real'(pass_count) / real'(total_tests)) * 100.0 : 0.0;
+        real error_rate = (total_tests > 0) ? (real'(error_count) / real'(total_tests)) * 100.0 : 0.0;
+        real write_read_ratio = (total_tests > 0) ? (real'(write_count) / real'(total_tests)) * 100.0 : 0.0;
+        real boundary_crossing_rate = (total_tests > 0) ? (real'(boundary_crossing_count) / real'(total_tests)) * 100.0 : 0.0;
+        real memory_violation_rate = (total_tests > 0) ? (real'(memory_violation_count) / real'(total_tests)) * 100.0 : 0.0;
+        real normal_transaction_rate = (total_tests > 0) ? (real'(normal_transaction_count) / real'(total_tests)) * 100.0 : 0.0;
+        
+        `uvm_info("SCOREBOARD", "========== FINAL SCOREBOARD REPORT ==========", UVM_LOW)
+        `uvm_info("SCOREBOARD", $sformatf("TOTAL TESTS          = %6d", total_tests), UVM_LOW)
+        `uvm_info("SCOREBOARD", $sformatf("PASS COUNT           = %6d (%.1f%%)", pass_count, pass_rate), UVM_LOW)
+        `uvm_info("SCOREBOARD", $sformatf("ERROR COUNT          = %6d (%.1f%%)", error_count, error_rate), UVM_LOW)
+        `uvm_info("SCOREBOARD", "============================================", UVM_LOW)
+        `uvm_info("SCOREBOARD", $sformatf("WRITE COUNT          = %6d (%.1f%%)", write_count, write_read_ratio), UVM_LOW)
+        `uvm_info("SCOREBOARD", $sformatf("READ COUNT           = %6d (%.1f%%)", read_count, 100.0 - write_read_ratio), UVM_LOW)
+        `uvm_info("SCOREBOARD", $sformatf("OKAY RESPONSES       = %6d", okay_count), UVM_LOW)
+        `uvm_info("SCOREBOARD", $sformatf("SLVERR RESPONSES     = %6d", slverr_count), UVM_LOW)
+        `uvm_info("SCOREBOARD", "============================================", UVM_LOW)
+        `uvm_info("SCOREBOARD", $sformatf("NORMAL TRANSACTIONS  = %6d (%.1f%%)", normal_transaction_count, normal_transaction_rate), UVM_LOW)
+        `uvm_info("SCOREBOARD", $sformatf("ABORTED TRANSACTIONS = %6d (%.1f%%)", aborted_transaction_count, 100.0 - normal_transaction_rate), UVM_LOW)
+        `uvm_info("SCOREBOARD", $sformatf("BOUNDARY CROSSINGS   = %6d (%.1f%%)", boundary_crossing_count, boundary_crossing_rate), UVM_LOW)
+        `uvm_info("SCOREBOARD", $sformatf("MEMORY VIOLATIONS    = %6d (%.1f%%)", memory_violation_count, memory_violation_rate), UVM_LOW)
+        `uvm_info("SCOREBOARD", "============================================", UVM_LOW)
         
         if (error_count == 0) begin
             `uvm_info("SCOREBOARD", "*** ALL TESTS PASSED! ***", UVM_LOW)
         end else begin
             `uvm_error("SCOREBOARD", $sformatf("*** %0d TESTS FAILED ***", error_count))
         end
-        `uvm_info("SCOREBOARD", "==============================", UVM_LOW)
+        
+        // Coverage analysis
+        if (boundary_crossing_count == 0) begin
+            `uvm_warning("SCOREBOARD", "No boundary crossing tests executed - coverage gap")
+        end
+        
+        if (memory_violation_count == 0) begin
+            `uvm_warning("SCOREBOARD", "No memory violation tests executed - coverage gap")
+        end
+        
+        if (aborted_transaction_count == 0) begin
+            `uvm_warning("SCOREBOARD", "No aborted transaction tests executed - coverage gap")
+        end
+        
+        if (slverr_count == 0) begin
+            `uvm_warning("SCOREBOARD", "No SLVERR responses detected - error handling coverage gap")
+        end
+        
+        `uvm_info("SCOREBOARD", "=============================================", UVM_LOW)
     endfunction
 
     function void report_phase(uvm_phase phase);
-        `uvm_info("SCOREBOARD", "Report phase completed", UVM_MEDIUM)
+        `uvm_info("SCOREBOARD", "Scoreboard report phase completed", UVM_MEDIUM)
+    endfunction
+
+    // Utility functions for external access
+    function real get_pass_rate();
+        return (total_tests > 0) ? (real'(pass_count) / real'(total_tests)) * 100.0 : 0.0;
+    endfunction
+    
+    function real get_error_rate();
+        return (total_tests > 0) ? (real'(error_count) / real'(total_tests)) * 100.0 : 0.0;
+    endfunction
+    
+    function real get_boundary_crossing_rate();
+        return (total_tests > 0) ? (real'(boundary_crossing_count) / real'(total_tests)) * 100.0 : 0.0;
+    endfunction
+    
+    function real get_normal_transaction_rate();
+        return (total_tests > 0) ? (real'(normal_transaction_count) / real'(total_tests)) * 100.0 : 0.0;
     endfunction
 
 endclass

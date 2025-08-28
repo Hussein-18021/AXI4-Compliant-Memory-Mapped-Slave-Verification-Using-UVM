@@ -10,9 +10,12 @@ class test extends uvm_test;
     
     common_cfg m_cfg;
     env env_;
+    
     _sequence seq;
     simple_write_sequence simple_wr_seq;
     simple_read_sequence simple_rd_seq;
+    comprehensive_coverage_sequence comprehensive_seq;
+    mixed_operation_sequence mixed_seq;
     
     `uvm_component_utils(test)
     
@@ -26,17 +29,15 @@ class test extends uvm_test;
         // Create environment
         env_ = env::type_id::create("env", this); 
         
-        // Create sequences
         seq = _sequence::type_id::create("seq");
         simple_wr_seq = simple_write_sequence::type_id::create("simple_wr_seq");
         simple_rd_seq = simple_read_sequence::type_id::create("simple_rd_seq");
+        comprehensive_seq = comprehensive_coverage_sequence::type_id::create("comprehensive_seq");
+        mixed_seq = mixed_operation_sequence::type_id::create("mixed_seq");
         
-        // Create common configuration
         m_cfg = common_cfg::type_id::create("m_cfg");
         
         `uvm_info(get_type_name(), "Test build phase - UVM_MEDIUM", UVM_MEDIUM)
-        
-        // Set configuration in database
         uvm_config_db#(common_cfg)::set(this, "*", "m_cfg", m_cfg);
     endfunction
 
@@ -49,51 +50,54 @@ class test extends uvm_test;
     task run_phase (uvm_phase phase);
         phase.raise_objection(this);
         
-        `uvm_info(get_type_name(), "=== STARTING TEST EXECUTION ===", UVM_LOW);
-        
-        // Wait a bit for initialization
+        `uvm_info(get_type_name(), "=== STARTING ENHANCED COVERAGE TEST EXECUTION ===", UVM_LOW);
         #100ns;
         
         fork
             begin
-                // Run simple sequences first for debugging
-                `uvm_info(get_type_name(), "Starting simple write sequence", UVM_LOW);
+                `uvm_info(get_type_name(), "=== PHASE 1: BASIC FUNCTIONALITY ===", UVM_LOW);
+                `uvm_info(get_type_name(), "Running simple write sequence", UVM_LOW);
                 simple_wr_seq.start(env_.agent_.sequencer_);
-                
                 #50ns;
-                
-                `uvm_info(get_type_name(), "Starting simple read sequence", UVM_LOW);
+                `uvm_info(get_type_name(), "Running simple read sequence", UVM_LOW);
                 simple_rd_seq.start(env_.agent_.sequencer_);
-                
                 #50ns;
-                
-                // Run the main randomized sequence
-                `uvm_info(get_type_name(), "Starting main sequence", UVM_LOW);
+        
+                // Phase 2: Mixed realistic traffic
+                `uvm_info(get_type_name(), "=== PHASE 2: MIXED TRAFFIC ===", UVM_LOW);
+                `uvm_info(get_type_name(), "Running mixed operation sequence", UVM_LOW);
+                mixed_seq.start(env_.agent_.sequencer_);
+                #200ns;
+            
+                // Phase 3: Final randomized traffic
+                `uvm_info(get_type_name(), "=== PHASE 3: RANDOMIZED TRAFFIC ===", UVM_LOW);
+                `uvm_info(get_type_name(), "Running main randomized sequence", UVM_LOW);
                 seq.start(env_.agent_.sequencer_);
-                
-                #100ns;
+                #200ns;
+
+                 // Phase 4: Comprehensive coverage check (alternative approach)
+                 `uvm_info(get_type_name(), "=== COMPREHENSIVE COVERAGE SEQUENCE ===", UVM_LOW);
+                 comprehensive_seq.start(env_.agent_.sequencer_);
+                 #500ns;
             end
             begin
-                // Monitor for configuration events
                 forever begin
                     @m_cfg.stimulus_sent_e;
                     `uvm_info(get_type_name(), "Stimulus sent event received", UVM_HIGH);
                 end
             end
         join_any
-        
-        // Allow some time for final transactions to complete
-        #200ns;
-        
-        `uvm_info(get_type_name(), "=== TEST EXECUTION COMPLETED ===", UVM_LOW);
-        
+        `uvm_info(get_type_name(), "=== ALLOWING TIME FOR FINAL TRANSACTIONS ===", UVM_LOW);
+        #500ns;        
+        `uvm_info(get_type_name(), "=== ENHANCED COVERAGE TEST EXECUTION COMPLETED ===", UVM_LOW);
         phase.drop_objection(this);
     endtask
     
+    
     function void report_phase(uvm_phase phase);
         super.report_phase(phase);
-        `uvm_info(get_type_name(), "Test completed - check results above", UVM_LOW)
+        `uvm_info(get_type_name(), "=== ENHANCED COVERAGE TEST COMPLETED ===", UVM_LOW)
+        `uvm_info(get_type_name(), "Check coverage report and scoreboard results above", UVM_LOW)
     endfunction
 endclass
 `endif
-

@@ -53,7 +53,6 @@ module top;
         uvm_config_db #(uvm_active_passive_enum)::set(null, "uvm_test_top.env.agent_", "is_active", UVM_ACTIVE);
         uvm_config_db #(virtual intf)::set(null, "uvm_test_top.env.agent_.*", "intf", vif);
         uvm_config_db #(virtual intf)::set(null, "uvm_test_top.env.scoreboard_", "intf", vif);
-
         run_test("test");
     end
 

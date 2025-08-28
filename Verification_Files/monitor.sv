@@ -11,6 +11,12 @@ class monitor extends uvm_monitor;
     virtual intf vif;
     uvm_analysis_port #(transaction) ap;
     
+    // DEBUG: Add counters
+    int write_transactions_sent = 0;
+    int read_transactions_sent = 0;
+    int write_transactions_started = 0;
+    int read_transactions_started = 0;
+    
     function new(string name= "monitor", uvm_component parent = null);
         super.new(name, parent);
         ap = new ("ap", this);
@@ -28,110 +34,102 @@ class monitor extends uvm_monitor;
     endfunction
 
     task run_phase (uvm_phase phase);
+        fork
+            monitor_write();
+            monitor_read();
+        join
+    endtask
+
+    task monitor_write();
         transaction tr;
+        int i;
+        bit current_wlast;
+        
         forever begin
-            @(posedge vif.ACLK);
+            @(posedge vif.ACLK iff vif.ARESETn);
             
-            // Detect write transaction start
-            if (vif.AWVALID && vif.AWREADY && vif.ARESETn) begin
+            if (vif.AWVALID && vif.AWREADY) begin
+                write_transactions_started++;
+                `uvm_info("MON_DEBUG", $sformatf("=== WRITE TRANSACTION STARTED #%0d ===", write_transactions_started), UVM_LOW)
+                
                 tr = transaction#()::type_id::create("write_tr");
                 tr.OP = transaction#()::WRITE;
                 tr.AWADDR = vif.AWADDR;
                 tr.AWLEN = vif.AWLEN;
                 tr.AWSIZE = vif.AWSIZE;
+                tr.WDATA = new[vif.AWLEN + 1];
                 
-                `uvm_info("MON", $sformatf("Write transaction detected: ADDR=0x%0h, LEN=%0d", 
-                         tr.AWADDR, tr.AWLEN), UVM_MEDIUM)
-                
-                // FIXED: Proper AWLEN validation - check for reasonable burst lengths
-                if (tr.AWLEN <= 8'd255) begin  // AXI4 allows 0-255, but practical limit
-                    tr.WDATA = new[tr.AWLEN + 1];
-                    
-                    // Capture write data beat by beat
-                    for (int i = 0; i <= tr.AWLEN; i++) begin
-                        // Wait for valid data beat
-                        do begin
-                            @(posedge vif.ACLK);
-                        end while (!(vif.WVALID && vif.WREADY) || !vif.ARESETn);
-                        
-                        if (!vif.ARESETn) break; // Exit if reset
-                        
-                        tr.WDATA[i] = vif.WDATA;
-                        `uvm_info("MON", $sformatf("Captured WDATA[%0d] = 0x%0h", i, vif.WDATA), UVM_HIGH)
-                        
-                        // Check WLAST signal
-                        if (i == tr.AWLEN && !vif.WLAST) begin
-                            `uvm_error("MON", "WLAST not asserted on final write beat");
-                        end
-                    end
-                    
-                    // Capture write response if reset is not active
-                    if (vif.ARESETn) begin
-                        do begin
-                            @(posedge vif.ACLK);
-                        end while (!(vif.BVALID && vif.BREADY) || !vif.ARESETn);
-                        
-                        if (vif.ARESETn) begin
-                            tr.BRESP = vif.BRESP;
-                            `uvm_info("MON", $sformatf("Write transaction completed: ADDR=0x%0h, LEN=%0d, BRESP=0x%0h", 
-                                     tr.AWADDR, tr.AWLEN, tr.BRESP), UVM_MEDIUM)
-                            ap.write(tr);
-                        end
-                    end
-                end else begin
-                    `uvm_error("MON", $sformatf("Invalid AWLEN value: %0d (exceeds max burst length)", tr.AWLEN))
+                // Collect all write data beats
+                for (i = 0; i <= vif.AWLEN; i++) begin
+                    @(posedge vif.ACLK iff (vif.WVALID && vif.WREADY));
+                    tr.WDATA[i] = vif.WDATA;
+                    current_wlast = vif.WLAST;
                 end
+                
+                // Wait for response
+                @(posedge vif.ACLK iff (vif.BVALID && vif.BREADY));
+                tr.BRESP = vif.BRESP;
+                
+                write_transactions_sent++;
+                ap.write(tr);
+                `uvm_info("MON_WRITE", $sformatf("Write transaction sent #%0d: ADDR=0x%h, LEN=%0d, RESP=%0d", 
+                         write_transactions_sent, tr.AWADDR, tr.AWLEN, tr.BRESP), UVM_LOW)
             end
+        end
+    endtask
+
+    task monitor_read();
+        transaction tr;
+        int i;
+        bit current_rlast;
+        
+        forever begin
+            @(posedge vif.ACLK iff vif.ARESETn);
             
-            // Detect read transaction start  
-            if (vif.ARVALID && vif.ARREADY && vif.ARESETn) begin
+            if (vif.ARVALID && vif.ARREADY) begin
+                read_transactions_started++;
+                `uvm_info("MON_DEBUG", $sformatf("=== READ TRANSACTION STARTED #%0d ===", read_transactions_started), UVM_LOW)
+                
                 tr = transaction#()::type_id::create("read_tr");
-                tr.OP = transaction#()::read;
+                tr.OP = transaction#()::READ;
                 tr.ARADDR = vif.ARADDR;
                 tr.ARLEN = vif.ARLEN;
                 tr.ARSIZE = vif.ARSIZE;
+                tr.RDATA = new[vif.ARLEN + 1];
                 
-                `uvm_info("MON", $sformatf("Read transaction detected: ADDR=0x%0h, LEN=%0d", 
-                         tr.ARADDR, tr.ARLEN), UVM_MEDIUM)
-                
-                // FIXED: Proper ARLEN validation
-                if (tr.ARLEN <= 8'd255) begin  // AXI4 allows 0-255
-                    tr.RDATA = new[tr.ARLEN + 1];
-                    
-                    // Capture read data beat by beat
-                    for (int i = 0; i <= tr.ARLEN; i++) begin
-                        // Wait for valid data beat
-                        do begin
-                            @(posedge vif.ACLK);
-                        end while (!(vif.RVALID && vif.RREADY) || !vif.ARESETn);
-                        
-                        if (!vif.ARESETn) break; // Exit if reset
-                        
-                        tr.RDATA[i] = vif.RDATA;
-                        `uvm_info("MON", $sformatf("Captured RDATA[%0d] = 0x%0h", i, vif.RDATA), UVM_HIGH)
-                        
-                        // Check RLAST signal
-                        if (i == tr.ARLEN && !vif.RLAST) begin
-                            `uvm_error("MON", "RLAST not asserted on final read beat");
-                        end else if (vif.RLAST && i != tr.ARLEN) begin
-                            `uvm_warning("MON", $sformatf("RLAST asserted early at beat %0d, expected at beat %0d", 
-                                        i, tr.ARLEN));
-                            break;
-                        end
-                    end
-                    
-                    // Capture final response
-                    if (vif.ARESETn) begin
-                        tr.RRESP = vif.RRESP;
-                        `uvm_info("MON", $sformatf("Read transaction completed: ADDR=0x%0h, LEN=%0d, RRESP=0x%0h", 
-                                 tr.ARADDR, tr.ARLEN, tr.RRESP), UVM_MEDIUM)
-                        ap.write(tr);
-                    end
-                end else begin
-                    `uvm_error("MON", $sformatf("Invalid ARLEN value: %0d (exceeds max burst length)", tr.ARLEN))
+                // Collect all read data beats
+                for (i = 0; i <= vif.ARLEN; i++) begin
+                    @(posedge vif.ACLK iff (vif.RVALID && vif.RREADY));
+                    tr.RDATA[i] = vif.RDATA;
+                    tr.RRESP = vif.RRESP;
+                    current_rlast = vif.RLAST;
                 end
+                
+                read_transactions_sent++;
+                ap.write(tr);
+                `uvm_info("MON_READ", $sformatf("Read transaction sent #%0d: ADDR=0x%h, LEN=%0d, RESP=%0d", 
+                         read_transactions_sent, tr.ARADDR, tr.ARLEN, tr.RRESP), UVM_LOW)
             end
         end
-    endtask 
+    endtask
+    
+    function void report_phase(uvm_phase phase);
+        `uvm_info("MON_STATS", "=== MONITOR STATISTICS ===", UVM_LOW)
+        `uvm_info("MON_STATS", $sformatf("Write transactions started: %0d", write_transactions_started), UVM_LOW)
+        `uvm_info("MON_STATS", $sformatf("Write transactions sent:    %0d", write_transactions_sent), UVM_LOW)
+        `uvm_info("MON_STATS", $sformatf("Read transactions started:  %0d", read_transactions_started), UVM_LOW)
+        `uvm_info("MON_STATS", $sformatf("Read transactions sent:     %0d", read_transactions_sent), UVM_LOW)
+        `uvm_info("MON_STATS", "==========================", UVM_LOW)
+        
+        if (write_transactions_started != write_transactions_sent) begin
+            `uvm_warning("MON_STATS", $sformatf("Write transaction mismatch: started=%0d, sent=%0d", 
+                        write_transactions_started, write_transactions_sent))
+        end
+        
+        if (read_transactions_started != read_transactions_sent) begin
+            `uvm_warning("MON_STATS", $sformatf("Read transaction mismatch: started=%0d, sent=%0d", 
+                        read_transactions_started, read_transactions_sent))
+        end
+    endfunction
 endclass
 `endif

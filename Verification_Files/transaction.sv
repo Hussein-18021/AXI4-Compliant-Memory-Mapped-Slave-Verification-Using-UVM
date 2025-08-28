@@ -5,58 +5,64 @@ import uvm_pkg::*;
 
 class transaction #(int DATA_WIDTH = 32, int ADDR_WIDTH = 16, int MEMORY_DEPTH = 1024) extends uvm_sequence_item;
     
-    typedef enum {read, WRITE} op_t;
+    typedef enum {READ, WRITE} op_t; // Changed from READ to READ for consistency
     typedef enum {RANDOM_MODE, BOUNDARY_CROSSING_MODE, BURST_LENGTH_MODE, DATA_PATTERN_MODE} test_mode_t;
     typedef enum {RANDOM_DATA, ALL_ZEROS, ALL_ONES, ALTERNATING_AA, ALTERNATING_55} data_pattern_t;
+    typedef enum {SINGLE_BEAT, SHORT_BURST, MEDIUM_BURST, LONG_BURST} burst_type_t;
     
-    localparam int MEMORY_SIZE_BYTES = MEMORY_DEPTH * 4; // 4KB
+    localparam int MEMORY_SIZE_BYTES = MEMORY_DEPTH * 4;
     localparam int MAX_BYTE_ADDR = MEMORY_SIZE_BYTES - 4;
 
     rand op_t OP;
     rand test_mode_t test_mode;
     rand data_pattern_t data_pattern;
+    rand burst_type_t burst_type;
     
     rand logic [ADDR_WIDTH-1:0] AWADDR, ARADDR;
     rand logic [7:0] AWLEN, ARLEN;
     logic [2:0] AWSIZE, ARSIZE;
-    rand logic [DATA_WIDTH-1:0] WDATA[];
+    
+    rand logic [DATA_WIDTH-1:0] WDATA[];  // For burst mode
+    logic [DATA_WIDTH-1:0] RDATA[];  //DUT's response
+    
     rand logic AWVALID, WVALID, BREADY;
     rand logic ARVALID, RREADY;
     
     rand bit directed_test_mode;
     rand int corner_case_selector;
     rand int reset_cycles;
-    rand int valid_delay;
-    rand int ready_delay;
+    rand int awvalid_delay, arvalid_delay;
+    rand int wvalid_delay[];
+    rand bit awvalid_value, arvalid_value;
+    rand bit wvalid_pattern[];
+    rand bit bready_value, rready_value; // Changed from bREADy_value, rREADy_value to bready_value, rready_value
 
-    logic AWREADY, WREADY;              // DUT
-    logic [1:0] BRESP;                  // DUT
-    logic BVALID;                       // DUT
-    logic ARREADY;                      // DUT
-    logic [DATA_WIDTH-1:0] RDATA[];     // DUT
-    logic [1:0] RRESP;                  // DUT
-    logic RLAST, RVALID;                // DUT
+    // DUT Response signals
+    logic AWREADY, WREADY;              
+    logic [1:0] BRESP;                  
+    logic BVALID;                       
+    logic ARREADY;
+    logic [1:0] RRESP;                  
+    logic RLAST, RVALID;                
 
+    // EXPECTED VALUES - Including expected WDATA for golden model comparison
     logic expected_AWREADY, expected_WREADY;
     logic [1:0] expected_BRESP;
     logic expected_BVALID;
-
     logic expected_ARREADY;
     logic [DATA_WIDTH-1:0] expected_RDATA[];
+    logic [DATA_WIDTH-1:0] expected_WDATA[];
     logic [1:0] expected_RRESP;
     logic expected_RLAST, expected_RVALID;
 
-    // Factory registration
     `uvm_object_utils_begin(transaction)
-        
-        // Stimulus fields
         `uvm_field_enum(op_t, OP, UVM_DEFAULT)
         `uvm_field_enum(test_mode_t, test_mode, UVM_DEFAULT)
         `uvm_field_enum(data_pattern_t, data_pattern, UVM_DEFAULT)
+        `uvm_field_enum(burst_type_t, burst_type, UVM_DEFAULT)
         `uvm_field_int(directed_test_mode, UVM_DEFAULT)
         `uvm_field_int(corner_case_selector, UVM_DEFAULT)
         
-        // Address and control
         `uvm_field_int(AWADDR, UVM_DEFAULT)
         `uvm_field_int(ARADDR, UVM_DEFAULT)
         `uvm_field_int(AWLEN, UVM_DEFAULT)
@@ -64,51 +70,56 @@ class transaction #(int DATA_WIDTH = 32, int ADDR_WIDTH = 16, int MEMORY_DEPTH =
         `uvm_field_int(AWSIZE, UVM_DEFAULT)
         `uvm_field_int(ARSIZE, UVM_DEFAULT)
         
-        // Data arrays
+        // BURST DATA ARRAYS
         `uvm_field_array_int(WDATA, UVM_DEFAULT)
+        `uvm_field_array_int(RDATA, UVM_DEFAULT)
+        `uvm_field_array_int(expected_RDATA, UVM_DEFAULT)
+        `uvm_field_array_int(expected_WDATA, UVM_DEFAULT)
         
-        // Valid signals
         `uvm_field_int(AWVALID, UVM_DEFAULT)
         `uvm_field_int(WVALID, UVM_DEFAULT)
         `uvm_field_int(BREADY, UVM_DEFAULT)
         `uvm_field_int(ARVALID, UVM_DEFAULT)
         `uvm_field_int(RREADY, UVM_DEFAULT)
         
-        // Timing
         `uvm_field_int(reset_cycles, UVM_DEFAULT)
-        `uvm_field_int(valid_delay, UVM_DEFAULT)
-        `uvm_field_int(ready_delay, UVM_DEFAULT)
+        `uvm_field_int(awvalid_delay, UVM_DEFAULT)
+        `uvm_field_int(arvalid_delay, UVM_DEFAULT)
+        `uvm_field_array_int(wvalid_delay, UVM_DEFAULT)
+        `uvm_field_int(awvalid_value, UVM_DEFAULT)
+        `uvm_field_int(arvalid_value, UVM_DEFAULT)
+        `uvm_field_array_int(wvalid_pattern, UVM_DEFAULT)
+        `uvm_field_int(bready_value, UVM_DEFAULT) // Changed from bREADy_value to bready_value
+        `uvm_field_int(rready_value, UVM_DEFAULT) // Changed from rREADy_value to rready_value
         
         // DUT responses
-        `uvm_field_int(AWREADY, UVM_DEFAULT | UVM_READONLY)
-        `uvm_field_int(WREADY, UVM_DEFAULT | UVM_READONLY)
-        `uvm_field_int(BRESP, UVM_DEFAULT | UVM_READONLY)
-        `uvm_field_int(BVALID, UVM_DEFAULT | UVM_READONLY)
-        `uvm_field_int(ARREADY, UVM_DEFAULT | UVM_READONLY)
-        `uvm_field_array_int(RDATA, UVM_DEFAULT | UVM_READONLY)
-        `uvm_field_int(RRESP, UVM_DEFAULT | UVM_READONLY)
-        `uvm_field_int(RLAST, UVM_DEFAULT | UVM_READONLY)
-        `uvm_field_int(RVALID, UVM_DEFAULT | UVM_READONLY)
+        `uvm_field_int(AWREADY, UVM_DEFAULT)
+        `uvm_field_int(WREADY, UVM_DEFAULT)
+        `uvm_field_int(BRESP, UVM_DEFAULT)
+        `uvm_field_int(BVALID, UVM_DEFAULT)
+        `uvm_field_int(ARREADY, UVM_DEFAULT)
+        `uvm_field_int(RRESP, UVM_DEFAULT)
+        `uvm_field_int(RLAST, UVM_DEFAULT)
+        `uvm_field_int(RVALID, UVM_DEFAULT)
         
-        // Expected values (for comparison)
-        `uvm_field_int(expected_AWREADY, UVM_DEFAULT | UVM_READONLY)
-        `uvm_field_int(expected_WREADY, UVM_DEFAULT | UVM_READONLY)
-        `uvm_field_int(expected_BRESP, UVM_DEFAULT | UVM_READONLY)
-        `uvm_field_int(expected_BVALID, UVM_DEFAULT | UVM_READONLY)
-        `uvm_field_int(expected_ARREADY, UVM_DEFAULT | UVM_READONLY)
-        `uvm_field_array_int(expected_RDATA, UVM_DEFAULT | UVM_READONLY)
-        `uvm_field_int(expected_RRESP, UVM_DEFAULT | UVM_READONLY)
-        `uvm_field_int(expected_RLAST, UVM_DEFAULT | UVM_READONLY)
-        `uvm_field_int(expected_RVALID, UVM_DEFAULT | UVM_READONLY)
+        // Expected values
+        `uvm_field_int(expected_AWREADY, UVM_DEFAULT)
+        `uvm_field_int(expected_WREADY, UVM_DEFAULT)
+        `uvm_field_int(expected_BRESP, UVM_DEFAULT)
+        `uvm_field_int(expected_BVALID, UVM_DEFAULT)
+        `uvm_field_int(expected_ARREADY, UVM_DEFAULT)
+        `uvm_field_int(expected_RRESP, UVM_DEFAULT)
+        `uvm_field_int(expected_RLAST, UVM_DEFAULT)
+        `uvm_field_int(expected_RVALID, UVM_DEFAULT)
     `uvm_object_utils_end
 
-    // Constructor
-        function new(string name = "transaction");
+    function new(string name = "transaction");
         super.new(name);
         
-        OP = read;
+        OP = READ;
         test_mode = RANDOM_MODE;
         data_pattern = RANDOM_DATA;
+        burst_type = SINGLE_BEAT;
         directed_test_mode = 0;
         corner_case_selector = 0;
         
@@ -116,8 +127,8 @@ class transaction #(int DATA_WIDTH = 32, int ADDR_WIDTH = 16, int MEMORY_DEPTH =
         ARADDR = 16'h0000;
         AWLEN = 8'h00;
         ARLEN = 8'h00;
-        AWSIZE = 3'b010; // 4 bytes
-        ARSIZE = 3'b010; // 4 bytes
+        AWSIZE = 3'b010;
+        ARSIZE = 3'b010;
         
         AWVALID = 1'b1;
         WVALID = 1'b1;
@@ -126,56 +137,112 @@ class transaction #(int DATA_WIDTH = 32, int ADDR_WIDTH = 16, int MEMORY_DEPTH =
         RREADY = 1'b1;
         
         reset_cycles = 0;
-        valid_delay = 0;
-        ready_delay = 0;
-        
-        AWREADY = 1'b0;
-        WREADY = 1'b0;
-        BRESP = 2'b00;
-        BVALID = 1'b0;
-        ARREADY = 1'b0;
-        RRESP = 2'b00;
-        RLAST = 1'b0;
-        RVALID = 1'b0;
-        
-        expected_AWREADY = 1'b0;
-        expected_WREADY = 1'b0;
-        expected_BRESP = 2'b00;
-        expected_BVALID = 1'b0;
-        expected_ARREADY = 1'b0;
-        expected_RRESP = 2'b00;
-        expected_RLAST = 1'b0;
-        expected_RVALID = 1'b0;
+        awvalid_delay = 0;
+        arvalid_delay = 0;
+        awvalid_value = 1;
+        arvalid_value = 1;
+        bready_value = 1;
+        rready_value = 1;
         
         WDATA = new[0];
         RDATA = new[0];
         expected_RDATA = new[0];
+        expected_WDATA = new[0];
+        wvalid_delay = new[0];
+        wvalid_pattern = new[0];
     endfunction
-    
+
     constraint operation_dist_c {
-        OP dist {read := 50, WRITE := 50};
+        OP dist {READ := 40, WRITE := 60};
     }
     
     constraint test_mode_dist_c {
         test_mode dist {
             RANDOM_MODE := 40,
-            BOUNDARY_CROSSING_MODE := 25,
+            BOUNDARY_CROSSING_MODE := 30,
             BURST_LENGTH_MODE := 20,
-            DATA_PATTERN_MODE := 15
+            DATA_PATTERN_MODE := 10
         };
     }
     
-    constraint burst_alignment_c {
-        // Ensure burst doesn't cross memory boundaries
-        (AWADDR % (1 << AWSIZE)) == 0;
-        (ARADDR % (1 << ARSIZE)) == 0;
+    constraint burst_type_dist_c {
+        burst_type dist {
+            SINGLE_BEAT := 20,
+            SHORT_BURST := 35,
+            MEDIUM_BURST := 25,
+            LONG_BURST := 15
+        };
+    }
+    
+    constraint burst_type_c {
+        if (burst_type == SINGLE_BEAT) { 
+            AWLEN == 0; 
+            ARLEN == 0;
+        } 
+        else if (burst_type == SHORT_BURST) { 
+            AWLEN inside {[1:3]};
+            ARLEN inside {[1:3]};
+        } 
+        else if (burst_type == MEDIUM_BURST) { 
+            AWLEN inside {[4:8]};
+            ARLEN inside {[4:8]};
+        } 
+        else if (burst_type == LONG_BURST) { 
+            AWLEN inside {[9:15]};
+            ARLEN inside {[9:15]};
+        } 
+        else {
+            AWLEN inside {[16:20]};
+            ARLEN inside {[16:20]};
+        }
+    }
+
+    constraint addr_range_targeting_c {
+        solve AWLEN before AWADDR;
+        solve ARLEN before ARADDR;
+        
+        if (test_mode == RANDOM_MODE) {
+            AWADDR inside {[0:255], [256:511], [512:1023]};
+            ARADDR inside {[0:255], [256:511], [512:1023]};
+        }
+    }
+
+    constraint boundary_targeting_c {
+        solve AWLEN before AWADDR;
+        solve ARLEN before ARADDR;
+        
+        if (test_mode == BOUNDARY_CROSSING_MODE) {
+            if (OP == WRITE) {
+                ((AWADDR & 12'hFFF) + ((AWLEN + 1) << AWSIZE)) > 12'hFFF;
+            } else {
+                ((ARADDR & 12'hFFF) + ((ARLEN + 1) << ARSIZE)) > 12'hFFF;
+            }
+        } else {
+            if (OP == WRITE) {
+                ((AWADDR & 12'hFFF) + ((AWLEN + 1) << AWSIZE)) <= 12'hFFF;
+            } else {
+                ((ARADDR & 12'hFFF) + ((ARLEN + 1) << ARSIZE)) <= 12'hFFF;
+            }
+        }
+    }
+
+    constraint memory_range_c {
+        (AWADDR >> 2) < MEMORY_DEPTH;
+        ((AWADDR >> 2) + AWLEN) < MEMORY_DEPTH;
+        (ARADDR >> 2) < MEMORY_DEPTH;
+        ((ARADDR >> 2) + ARLEN) < MEMORY_DEPTH;
+    }
+    
+    constraint addr_alignment_c {
+        AWADDR % (1 << AWSIZE) == 0;
+        ARADDR % (1 << ARSIZE) == 0;
     }
 
     constraint data_pattern_dist_c {
         data_pattern dist {
-            RANDOM_DATA := 60,
-            ALL_ZEROS := 15,
-            ALL_ONES := 15,
+            RANDOM_DATA := 70,
+            ALL_ZEROS := 10,
+            ALL_ONES := 10,
             ALTERNATING_AA := 5,
             ALTERNATING_55 := 5
         };
@@ -185,57 +252,19 @@ class transaction #(int DATA_WIDTH = 32, int ADDR_WIDTH = 16, int MEMORY_DEPTH =
         AWSIZE == 3'b010;
         ARSIZE == 3'b010;
     }
+    
 
-    constraint burst_len_c {
-        AWLEN inside {[0:15]};
-        ARLEN inside {[0:15]};
+    constraint handshake_delay_c {
+        awvalid_delay inside {[0:1]};    
+        arvalid_delay inside {[0:1]};    
+        reset_cycles inside {[1:2]};     
         
-        AWLEN dist {
-            0 := 20,        // Single transfer
-            [1:3] := 35,    // Short bursts  
-            [4:7] := 25,    // Medium bursts
-            [8:15] := 20    // Long bursts
-        };
-        
-        ARLEN dist {
-            0 := 20,
-            [1:3] := 35,
-            [4:7] := 25,
-            [8:15] := 20
-        };
-    }
-
-    constraint memory_addr_c {
-        AWADDR[1:0] == 2'b00;
-        ARADDR[1:0] == 2'b00;
+        awvalid_value dist {1 := 90, 0 := 10};     
+        arvalid_value dist {1 := 90, 0 := 10};     
+        bready_value dist {1 := 98, 0 := 2}; // Changed from bREADy_value to bready_value      
+        rready_value dist {1 := 95, 0 := 5}; // Changed from rREADy_value to rready_value      
         
 
-        AWADDR inside {[16'h0000:16'h0FFC]};
-        ARADDR inside {[16'h0000:16'h0FFC]};
-        
-        (AWADDR + ((AWLEN + 1) << AWSIZE)) <= MEMORY_SIZE_BYTES;
-        (ARADDR + ((ARLEN + 1) << ARSIZE)) <= MEMORY_SIZE_BYTES;
-    }
-
-    constraint axi4_boundary_c {
-        ((AWADDR >> 12) == ((AWADDR + total_write_bytes() - 1) >> 12));
-        ((ARADDR >> 12) == ((ARADDR + total_read_bytes() - 1) >> 12));
-    }
-
-    constraint addr_distribution_c {
-        AWADDR dist {
-            [16'h0000:16'h0554] := 30,
-            [16'h0558:16'hAAC] := 30,
-            [16'hAB0:16'h0FFC] := 30,
-            [16'h0FF0:16'h0FFC] := 10
-        };
-        
-        ARADDR dist {
-            [16'h0000:16'h0554] := 30,
-            [16'h0558:16'hAAC] := 30,
-            [16'hAB0:16'h0FFC] := 30,
-            [16'h0FF0:16'h0FFC] := 10
-        };
     }
 
     constraint valid_signals_c {
@@ -246,66 +275,142 @@ class transaction #(int DATA_WIDTH = 32, int ADDR_WIDTH = 16, int MEMORY_DEPTH =
         RREADY dist {1 := 90, 0 := 10};
     }
 
-    constraint timing_c {
-        reset_cycles inside {[0:2]};
-        valid_delay inside {[0:3]};
-        ready_delay inside {[0:3]};
-    }
-
     constraint corner_case_c {
         if (!directed_test_mode) {
             corner_case_selector inside {[0:15]};
         }
     }
 
-    function void post_randomize();
+    function void ensure_data_arrays();
+        `uvm_info("TRANSACTION_SAFETY", $sformatf("ensure_data_arrays called: OP=%s", OP.name()), UVM_HIGH)
+        
         if (OP == WRITE) begin
-            WDATA = new[AWLEN + 1];
+            int expected_size = AWLEN + 1;
+            if (WDATA.size() != expected_size) begin
+                `uvm_info("TRANSACTION_SAFETY", $sformatf("Reallocating WDATA: current size=%0d, expected=%0d", 
+                        WDATA.size(), expected_size), UVM_MEDIUM)
+                WDATA = new[expected_size];
+                generate_write_data_pattern();
+                
+                // Also update expected arrays
+                expected_WDATA = new[expected_size];
+                for (int i = 0; i < expected_size; i++) begin
+                    expected_WDATA[i] = WDATA[i];
+                end
+            end
+        end else if (OP == READ) begin
+            int expected_size = ARLEN + 1;
+            if (RDATA.size() != expected_size) begin
+                `uvm_info("TRANSACTION_SAFETY", $sformatf("Reallocating RDATA: current size=%0d, expected=%0d", 
+                        RDATA.size(), expected_size), UVM_MEDIUM)
+                RDATA = new[expected_size];
+                expected_RDATA = new[expected_size];
+                
+                // Initialize with default values
+                for (int i = 0; i < expected_size; i++) begin
+                    RDATA[i] = 32'h00000000;
+                    expected_RDATA[i] = 32'h00000000;
+                end
+            end
+        end
+    endfunction
+
+    function void post_randomize();
+        `uvm_info("TRANSACTION_POST_RAND", $sformatf("post_randomize ENTRY: OP=%s, AWLEN=%0d, ARLEN=%0d", 
+                OP.name(), AWLEN, ARLEN), UVM_HIGH)
+        
+        if (OP == WRITE) begin
+            int burst_length = AWLEN + 1;
+            
+            // Always allocate fresh arrays
+            WDATA = new[burst_length];
+            expected_WDATA = new[burst_length];
+            wvalid_delay = new[burst_length];
+            wvalid_pattern = new[burst_length];  // Size based on AWLEN
+            
+            
+            // Set wvalid_pattern based on awvalid_value
+            // AXI4 Protocol: If AWVALID=0, no data phase; if AWVALID=1, all data must be sent
+            foreach (wvalid_pattern[i]) begin
+                if (awvalid_value == 1) begin
+                    wvalid_pattern[i] = 1;  // All data beats must be transferred
+                end else begin
+                    wvalid_pattern[i] = 0;  // No data beats (aborted transaction)
+                end
+            end
+            
+            // Generate data pattern
             generate_write_data_pattern();
-        end else begin
+            
+            // Copy to expected
+            for (int i = 0; i < burst_length; i++) begin
+                expected_WDATA[i] = WDATA[i];
+            end
+            
+            // Clear READ arrays
+            RDATA = new[0];
+            expected_RDATA = new[0];
+            
+        end else if (OP == READ) begin
+            int burst_length = ARLEN + 1;
+            
+            // For READ, WDATA should be empty
             WDATA = new[0];
+            expected_WDATA = new[0];
+            wvalid_delay = new[0];
+            wvalid_pattern = new[0];
+            
+            // Pre-allocate RDATA arrays
+            RDATA = new[burst_length];
+            expected_RDATA = new[burst_length];
+            
+            // Initialize with known pattern
+            for (int i = 0; i < burst_length; i++) begin
+                RDATA[i] = 32'h00000000;
+                expected_RDATA[i] = 32'h00000000;
+            end
         end
         
-        `uvm_info("TRANSACTION", $sformatf("Post-randomize: %s transaction, WDATA[%0d]", 
-                  OP.name(), WDATA.size()), UVM_HIGH)
+        `uvm_info("TRANSACTION_POST_RAND", $sformatf("post_randomize COMPLETE: OP=%s, WDATA[%0d], RDATA[%0d], wvalid_pattern[%0d]", 
+                OP.name(), WDATA.size(), RDATA.size(), wvalid_pattern.size()), UVM_HIGH)
     endfunction
     
+    function int total_bytes();
+        if (OP == WRITE) 
+            return (AWLEN + 1) << AWSIZE;
+        else
+            return (ARLEN + 1) << ARSIZE;
+    endfunction
+
     function int total_write_bytes();
         return (AWLEN + 1) << AWSIZE;
     endfunction
-
-    function int total_read_bytes();
+    
+    function int total_READ_bytes();
         return (ARLEN + 1) << ARSIZE;
     endfunction
 
     function bit crosses_4KB_boundary();
-        logic [15:0] start_4kb, end_4kb;
-        
-        case (OP)
-            WRITE: begin
-                start_4kb = AWADDR[15:12];
-                end_4kb = (AWADDR + total_write_bytes() - 1) >> 12;
-            end
-            read: begin
-                start_4kb = ARADDR[15:12];
-                end_4kb = (ARADDR + total_read_bytes() - 1) >> 12;
-            end
-        endcase
-        
-        return (start_4kb != end_4kb);
+        if (OP == WRITE)
+            return ((AWADDR & 12'hFFF) + total_write_bytes()) > 12'hFFF;
+        else
+            return ((ARADDR & 12'hFFF) + total_READ_bytes()) > 12'hFFF;
     endfunction
 
     function bit exceeds_memory_range();
         case (OP)
             WRITE: return (AWADDR >= MEMORY_SIZE_BYTES) || 
                           ((AWADDR + total_write_bytes()) > MEMORY_SIZE_BYTES);
-            read:  return (ARADDR >= MEMORY_SIZE_BYTES) || 
-                          ((ARADDR + total_read_bytes()) > MEMORY_SIZE_BYTES);
+            READ:  return (ARADDR >= MEMORY_SIZE_BYTES) || 
+                          ((ARADDR + total_READ_bytes()) > MEMORY_SIZE_BYTES);
         endcase
     endfunction
 
-    // Generate write data patterns (STIMULUS only)
+    // Generate write data patterns for BURST
     function void generate_write_data_pattern();
+        `uvm_info("PATTERN_GEN", $sformatf("Generating %s pattern for %0d beats", 
+                 data_pattern.name(), WDATA.size()), UVM_HIGH)
+                 
         case (data_pattern)
             RANDOM_DATA: begin
                 foreach (WDATA[i]) begin
@@ -337,25 +442,54 @@ class transaction #(int DATA_WIDTH = 32, int ADDR_WIDTH = 16, int MEMORY_DEPTH =
                 end
             end
         endcase
+        
+        // Debug: Print generated data
+        `uvm_info("PATTERN_GEN", $sformatf("Generated WDATA pattern:"), UVM_HIGH)
+        foreach (WDATA[i]) begin
+            `uvm_info("PATTERN_GEN", $sformatf("  WDATA[%0d] = 0x%0h", i, WDATA[i]), UVM_HIGH)
+        end
     endfunction
 
     function string convert2string();
         string s;
         s = $sformatf("\n=== Transaction (%s) ===", OP.name());
         s = {s, $sformatf("\nTest Mode: %s", test_mode.name())};
+        s = {s, $sformatf("\nBurst Type: %s", burst_type.name())};
         s = {s, $sformatf("\nData Pattern: %s", data_pattern.name())};
         
         if (OP == WRITE) begin
             s = {s, $sformatf("\nWRITE: ADDR=0x%0h, LEN=%0d, SIZE=%0d", AWADDR, AWLEN, AWSIZE)};
-            s = {s, $sformatf("\nWDATA[%0d], Total bytes: %0d", WDATA.size(), total_write_bytes())};
-            s = {s, $sformatf("\nHandshake: AWVALID=%0b, WVALID=%0b, BREADY=%0b", AWVALID, WVALID, BREADY)};
+            s = {s, $sformatf("\nWDATA[%0d] beats, Total bytes: %0d", WDATA.size(), total_write_bytes())};
+            if (WDATA.size() > 0) begin
+                s = {s, $sformatf("\nWDATA[0]=0x%0h", WDATA[0])};
+                if (WDATA.size() > 1) s = {s, $sformatf(", WDATA[1]=0x%0h", WDATA[1])};
+                if (WDATA.size() > 2) s = {s, $sformatf(", ...")};
+            end
+            s = {s, $sformatf("\nHandshake: AWVALID=%0b, WVALID=%0b, BREADY=%0b", awvalid_value, WVALID, bready_value)}; // Changed from bREADy_value to bready_value
+            
+            if (!awvalid_value) begin
+                s = {s, $sformatf("\nTransaction Scenario: ABORTED - No address phase")};
+            end else if (!bready_value) begin // Changed from bREADy_value to bready_value
+                s = {s, $sformatf("\nTransaction Scenario: RESPONSE_IGNORED")};
+            end else begin
+                s = {s, $sformatf("\nTransaction Scenario: NORMAL")};
+            end
+            
         end else begin
             s = {s, $sformatf("\nREAD: ADDR=0x%0h, LEN=%0d, SIZE=%0d", ARADDR, ARLEN, ARSIZE)};
-            s = {s, $sformatf("\nTotal bytes: %0d", total_read_bytes())};
-            s = {s, $sformatf("\nHandshake: ARVALID=%0b, RREADY=%0b", ARVALID, RREADY)};
+            s = {s, $sformatf("\nExpecting %0d RDATA beats, Total bytes: %0d", ARLEN+1, total_READ_bytes())};
+            s = {s, $sformatf("\nHandshake: ARVALID=%0b, RREADY=%0b", arvalid_value, rready_value)}; // Changed from rREADy_value to rready_value
+            
+            if (!arvalid_value) begin
+                s = {s, $sformatf("\nTransaction Scenario: ABORTED - No address phase")};
+            end else if (!rready_value) begin // Changed from rREADy_value to rready_value
+                s = {s, $sformatf("\nTransaction Scenario: DATA_IGNORED")};
+            end else begin
+                s = {s, $sformatf("\nTransaction Scenario: NORMAL")};
+            end
         end
         
-        s = {s, $sformatf("\n4KB Crossing: %0b", crosses_4KB_boundary())};
+        s = {s, $sformatf("\n4KB Crossing: %0b, Memory Exceeded: %0b", crosses_4KB_boundary(), exceeds_memory_range())};
         s = {s, $sformatf("\n========================")};
         return s;
     endfunction
