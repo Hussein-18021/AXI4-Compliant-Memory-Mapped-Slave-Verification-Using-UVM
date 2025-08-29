@@ -21,6 +21,7 @@ class test extends uvm_test;
     data_pattern_coverage_sequence pattern_seq;
     handshake_coverage_sequence handshake_seq;
     boundary_memory_sequence mem_violation_seq;
+    protocol_response_coverage_sequence protocol_seq;
 
     
     `uvm_component_utils(test)
@@ -45,6 +46,7 @@ class test extends uvm_test;
         pattern_seq = data_pattern_coverage_sequence::type_id::create("pattern_seq");
         handshake_seq = handshake_coverage_sequence::type_id::create("handshake_seq");
         mem_violation_seq = boundary_memory_sequence::type_id::create("mem_violation_seq");
+        protocol_seq = protocol_response_coverage_sequence::type_id::create("protocol_seq");
 
         mixed_seq = mixed_operation_sequence::type_id::create("mixed_seq");
         comprehensive_seq = comprehensive_coverage_sequence::type_id::create("comprehensive_seq");
@@ -82,7 +84,7 @@ class test extends uvm_test;
                 #200ns;
 
                 `uvm_info(get_type_name(), "=== PHASE: Running Focused sequences ===", UVM_LOW);
-
+                
                 `uvm_info(get_type_name(), "Running burst_type_seq", UVM_LOW);
                 burst_type_seq.start(env_.agent_.sequencer_);
                 #200ns;
@@ -101,6 +103,10 @@ class test extends uvm_test;
 
                 `uvm_info(get_type_name(), "Running memory violation sequence", UVM_LOW);
                 mem_violation_seq.start(env_.agent_.sequencer_);
+                #200ns;
+
+                `uvm_info(get_type_name(), "Running protocol specs seq", UVM_LOW);
+                protocol_seq.start(env_.agent_.sequencer_);
                 #200ns;
         
                 `uvm_info(get_type_name(), "=== PHASE: MIXED TRAFFIC ===", UVM_LOW);

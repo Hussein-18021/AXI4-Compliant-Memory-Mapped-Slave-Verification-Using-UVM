@@ -3,6 +3,7 @@
 `include "uvm_macros.svh"
 `include "transaction.sv"
 import uvm_pkg::*;
+
 class _sequence extends uvm_sequence #(transaction);
     
     `uvm_object_utils(_sequence)
@@ -15,7 +16,7 @@ class _sequence extends uvm_sequence #(transaction);
     task body();
         transaction req;
         repeat(num_transactions) begin
-            req = transaction#()::type_id::create("basic_focused_req");
+            req = transaction#()::type_id::create("Focused_req");
             start_item(req);
 
             if (!req.randomize() with {
@@ -65,6 +66,7 @@ class _sequence extends uvm_sequence #(transaction);
     endtask
 
 endclass
+
 class simple_write_sequence extends uvm_sequence #(transaction);
     `uvm_object_utils(simple_write_sequence)
     
@@ -79,27 +81,26 @@ class simple_write_sequence extends uvm_sequence #(transaction);
         
         req = transaction#()::type_id::create("simple_write_req");
         start_item(req);
-        
-        req.OP = transaction#()::WRITE;
-        req.AWADDR = 16'h0000;
-        req.AWLEN = 8'h00;
-        req.AWSIZE = 3'b010;
-        req.AWVALID = 1'b1;
-        req.WVALID = 1'b1;
-        req.BREADY = 1'b1;
-        req.test_mode_t = transaction#()::RANDOM_MODE;
-        req.data_pattern_t = transaction#()::RANDOM_DATA;
-        
-        if (req.WDATA.size() > 0) begin
-            req.WDATA[0] = 32'hffffffff;
-        end
-        
-        `uvm_info(get_type_name(), $sformatf("Simple write: ADDR=0x%0h, DATA=0x%0h", 
-                 req.AWADDR, req.WDATA[0]), UVM_LOW)
-        
+            req.OP = transaction#()::WRITE;
+            req.AWADDR = 16'h0000;
+            req.AWLEN = 8'h00;
+            req.AWSIZE = 3'b010;
+            req.AWVALID = 1'b1;
+            req.WVALID = 1'b1;
+            req.BREADY = 1'b1;
+            req.test_mode = transaction#()::RANDOM_MODE;
+            req.data_pattern = transaction#()::RANDOM_DATA;
+                    
+            if (req.WDATA.size() > 0) begin
+                req.WDATA[0] = 32'hffffffff;
+            end
+            
+            `uvm_info(get_type_name(), $sformatf("Simple write: ADDR=0x%0h, DATA=0x%0h", 
+                    req.AWADDR, req.WDATA[0]), UVM_LOW)
         finish_item(req);
     endtask
 endclass
+
 class simple_read_sequence extends uvm_sequence #(transaction);
     `uvm_object_utils(simple_read_sequence)
     
@@ -113,20 +114,17 @@ class simple_read_sequence extends uvm_sequence #(transaction);
         `uvm_info(get_type_name(), "Starting simple read sequence", UVM_LOW)
         
         req = transaction#()::type_id::create("simple_read_req");
-        start_item(req);
-        
-        req.OP = transaction#()::READ;
-        req.ARADDR = 16'h0000;
-        req.ARLEN = 8'h00;
-        req.ARSIZE = 3'b010;
-        req.ARVALID = 1'b1;
-        req.RREADY = 1'b1;
-        req.test_mode_t = transaction#()::RANDOM_MODE;
-        req.data_pattern_t = transaction#()::RANDOM_DATA;
-        req.WDATA = new[0];
-        
-        `uvm_info(get_type_name(), $sformatf("Simple read: ADDR=0x%0h", req.ARADDR), UVM_LOW)
-        
+        start_item(req);        
+            req.OP = transaction#()::READ;
+            req.ARADDR = 16'h0000;
+            req.ARLEN = 8'h00;
+            req.ARSIZE = 3'b010;
+            req.ARVALID = 1'b1;
+            req.RREADY = 1'b1;
+            req.test_mode = transaction#()::RANDOM_MODE;
+            req.data_pattern = transaction#()::RANDOM_DATA;
+            req.WDATA = new[0];
+            `uvm_info(get_type_name(), $sformatf("Simple read: ADDR=0x%0h", req.ARADDR), UVM_LOW)
         finish_item(req);
         
         `uvm_info(get_type_name(), "Simple read sequence completed", UVM_LOW)
@@ -144,9 +142,8 @@ class burst_type_coverage_sequence extends uvm_sequence #(transaction);
         transaction req;
         int burst_lengths_single[] = '{0};
         int burst_lengths_short[] = '{1, 2, 3};
-        int burst_lengths_medium[] = '{4,5,6,7,8};
-        int burst_lengths_long[] = '{9,10,11,12,13,14,15,16,17,18,19,20};
-        
+        int burst_lengths_medium[] = '{4, 5, 6, 7, 8};
+        int burst_lengths_long[] = '{9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20};
         transaction#()::op_t operations[] = '{transaction#()::WRITE, transaction#()::READ};
         
         `uvm_info(get_type_name(), "Starting comprehensive burst length coverage", UVM_LOW)
@@ -193,9 +190,9 @@ class burst_type_coverage_sequence extends uvm_sequence #(transaction);
                                            int len, 
                                            transaction#()::burst_type_t burst_type);
         req.OP = op;
-        req.burst_type_t = burst_type;
-        req.test_mode_t = transaction#()::BURST_LENGTH_MODE;
-        req.data_pattern_t = transaction#()::RANDOM_DATA;
+        req.burst_type = burst_type;
+        req.test_mode = transaction#()::BURST_LENGTH_MODE;
+        req.data_pattern = transaction#()::RANDOM_DATA;
         
         if (op == transaction#()::WRITE) begin
             req.AWLEN = len;
@@ -229,48 +226,48 @@ class handshake_coverage_sequence extends uvm_sequence #(transaction);
         // Normal transaction (awvalid=1, bready=1)
         req = transaction#()::type_id::create("write_normal");
         start_item(req);
-        generate_write_handshake(req, 1'b1, 1'b1, 1'b1, 1'b1);
+            generate_write_handshake(req, 1'b1, 1'b1, 1'b1, 1'b1);
         finish_item(req);
         
         // Response ignored (awvalid=1, bready=0)
         req = transaction#()::type_id::create("write_resp_ignored");
         start_item(req);
-        generate_write_handshake(req, 1'b1, 1'b1, 1'b0, 1'b1);
+            generate_write_handshake(req, 1'b1, 1'b1, 1'b0, 1'b1);
         finish_item(req);
         
         // Aborted transactions (awvalid=0 or wvalid=0)
         req = transaction#()::type_id::create("write_awvalid_abort");
         start_item(req);
-        generate_write_handshake(req, 1'b0, 1'b1, 1'b1, 1'b0);
+            generate_write_handshake(req, 1'b0, 1'b1, 1'b1, 1'b0);  
         finish_item(req);
         
         req = transaction#()::type_id::create("write_wvalid_abort");
         start_item(req);
-        generate_write_handshake(req, 1'b1, 1'b0, 1'b1, 1'b0);
+            generate_write_handshake(req, 1'b1, 1'b0, 1'b1, 1'b0);
         finish_item(req);
         
         req = transaction#()::type_id::create("write_both_abort");
         start_item(req);
-        generate_write_handshake(req, 1'b0, 1'b0, 1'b1, 1'b0);
+            generate_write_handshake(req, 1'b0, 1'b0, 1'b1, 1'b0);
         finish_item(req);
         
         // Read handshake scenarios
         // Normal transaction (arvalid=1, rready=1)
         req = transaction#()::type_id::create("read_normal");
         start_item(req);
-        generate_read_handshake(req, 1'b1, 1'b1);
+            generate_read_handshake(req, 1'b1, 1'b1);
         finish_item(req);
         
         // Data ignored (arvalid=1, rready=0)
         req = transaction#()::type_id::create("read_data_ignored");
         start_item(req);
-        generate_read_handshake(req, 1'b1, 1'b0);
+            generate_read_handshake(req, 1'b1, 1'b0);
         finish_item(req);
         
         // Aborted transaction (arvalid=0)
         req = transaction#()::type_id::create("read_aborted");
         start_item(req);
-        generate_read_handshake(req, 1'b0, 1'b1);
+            generate_read_handshake(req, 1'b0, 1'b1);
         finish_item(req);
         
         // Test different reset cycles
@@ -280,8 +277,8 @@ class handshake_coverage_sequence extends uvm_sequence #(transaction);
             
             req.OP = transaction#()::WRITE;
             req.reset_cycles = reset_val;
-            req.test_mode_t = transaction#()::RANDOM_MODE;
-            req.burst_type_t = transaction#()::SINGLE_BEAT;
+            req.test_mode = transaction#()::RANDOM_MODE;
+            req.burst_type = transaction#()::SINGLE_BEAT;
             req.awvalid_value = 1'b1;
             req.bready_value = 1'b1;
             
@@ -295,8 +292,8 @@ class handshake_coverage_sequence extends uvm_sequence #(transaction);
             
             req.OP = transaction#()::WRITE;
             req.awvalid_delay = delay_val;
-            req.test_mode_t = transaction#()::RANDOM_MODE;
-            req.burst_type_t = transaction#()::SINGLE_BEAT;
+            req.test_mode = transaction#()::RANDOM_MODE;
+            req.burst_type = transaction#()::SINGLE_BEAT;
             req.awvalid_value = 1'b1;
             req.bready_value = 1'b1;
             
@@ -316,9 +313,9 @@ class handshake_coverage_sequence extends uvm_sequence #(transaction);
         req.BREADY = bready;
         req.awvalid_value = awvalid;
         req.bready_value = bready;
-        req.test_mode_t = transaction#()::RANDOM_MODE;
-        req.burst_type_t = transaction#()::SINGLE_BEAT;
-        req.data_pattern_t = transaction#()::RANDOM_DATA;
+        req.test_mode = transaction#()::RANDOM_MODE;
+        req.burst_type = transaction#()::SINGLE_BEAT;
+        req.data_pattern = transaction#()::RANDOM_DATA;
     endfunction
     
     function void generate_read_handshake(transaction req, bit arvalid, bit rready);
@@ -330,8 +327,8 @@ class handshake_coverage_sequence extends uvm_sequence #(transaction);
         req.RREADY = rready;
         req.arvalid_value = arvalid;
         req.rready_value = rready;
-        req.test_mode_t = transaction#()::RANDOM_MODE;
-        req.burst_type_t = transaction#()::SINGLE_BEAT;
+        req.test_mode = transaction#()::RANDOM_MODE;
+        req.burst_type = transaction#()::SINGLE_BEAT;
         req.WDATA = new[0];
     endfunction
 endclass
@@ -345,10 +342,9 @@ class address_coverage_sequence extends uvm_sequence #(transaction);
     
     task body();
         transaction req;
-        int low_addrs[] = '{0, 1, 2, 10, 50, 100, 150, 200, 255};
-        int mid_addrs[] = '{256, 300, 350, 400, 450, 500, 511};
-        int high_addrs[] = '{512, 600, 700, 800, 900, 1000, 1020, 1023};
-
+        int low_addrs[$];
+        int mid_addrs[$];
+        int high_addrs[$];
         transaction#()::op_t operations[] = '{transaction#()::WRITE, transaction#()::READ};
         transaction#()::burst_type_t burst_types[] = '{
             transaction#()::SINGLE_BEAT,
@@ -357,9 +353,12 @@ class address_coverage_sequence extends uvm_sequence #(transaction);
             transaction#()::LONG_BURST
         };
         
+        for (int i = 0; i <= 255; i++) low_addrs.push_back(i);
+        for (int i = 256; i <= 511; i++) mid_addrs.push_back(i);
+        for (int i = 512; i <= 1023; i++) high_addrs.push_back(i);
+        
         `uvm_info(get_type_name(), "Starting comprehensive address coverage", UVM_LOW)
         
-        // Test all combinations of address ranges with different burst types
         foreach(operations[op]) begin
             foreach(burst_types[bt]) begin
                 // Low address range
@@ -396,9 +395,9 @@ class address_coverage_sequence extends uvm_sequence #(transaction);
                                              int addr, 
                                              transaction#()::burst_type_t burst_type);
         req.OP = op;
-        req.burst_type_t = burst_type;
-        req.test_mode_t = transaction#()::RANDOM_MODE;
-        req.data_pattern_t = transaction#()::RANDOM_DATA;
+        req.burst_type = burst_type;
+        req.test_mode = transaction#()::RANDOM_MODE;
+        req.data_pattern = transaction#()::RANDOM_DATA;
         
         if (op == transaction#()::WRITE) begin
             req.AWADDR = addr << 2;
@@ -448,9 +447,9 @@ class data_pattern_coverage_sequence extends uvm_sequence #(transaction);
                 start_item(req);
                 
                 req.OP = transaction#()::WRITE;
-                req.test_mode_t = transaction#()::DATA_PATTERN_MODE;
-                req.data_pattern_t = patterns[p];
-                req.burst_type_t = burst_types[bt];
+                req.test_mode = transaction#()::DATA_PATTERN_MODE;
+                req.data_pattern = patterns[p];
+                req.burst_type = burst_types[bt];
                 req.awvalid_value = 1'b1;
                 req.bready_value = 1'b1;
                 
@@ -465,6 +464,74 @@ class data_pattern_coverage_sequence extends uvm_sequence #(transaction);
     endtask
 endclass
 
+class protocol_response_coverage_sequence extends uvm_sequence #(transaction);
+    `uvm_object_utils(protocol_response_coverage_sequence)
+    
+    function new(string name = "protocol_response_coverage_sequence");
+        super.new(name);
+    endfunction
+    
+    task body();
+        transaction req;
+        int mode;
+        transaction#()::test_mode_t test_modes[] = '{
+            transaction#()::RANDOM_MODE,
+            transaction#()::BOUNDARY_CROSSING_MODE,
+            transaction#()::BURST_LENGTH_MODE,
+            transaction#()::DATA_PATTERN_MODE
+        };
+        
+        `uvm_info(get_type_name(), "Starting protocol response coverage", UVM_LOW)
+        
+        foreach(test_modes[mode]) begin
+            // Write with OKAY response
+            req = transaction#()::type_id::create("write_okay_resp");
+            start_item(req);
+                req.OP = transaction#()::WRITE;
+                req.test_mode = test_modes[mode];
+                req.burst_type = transaction#()::SINGLE_BEAT;
+                req.awvalid_value = 1'b1;
+                req.bready_value = 1'b1;
+                req.BRESP = 2'b00; // OKAY
+            finish_item(req);
+            
+            // Write with SLVERR response
+            req = transaction#()::type_id::create("write_slverr_resp");
+            start_item(req);
+                req.OP = transaction#()::WRITE;
+                req.test_mode = test_modes[mode];
+                req.burst_type = transaction#()::SINGLE_BEAT;
+                req.awvalid_value = 1'b1;
+                req.bready_value = 1'b1;
+                req.BRESP = 2'b10; // SLVERR
+            finish_item(req);
+            
+            // Read with OKAY response
+            req = transaction#()::type_id::create("read_okay_resp");
+            start_item(req);
+                req.OP = transaction#()::READ;
+                req.test_mode = test_modes[mode];
+                req.burst_type = transaction#()::SINGLE_BEAT;
+                req.arvalid_value = 1'b1;
+                req.rready_value = 1'b1;
+                req.RRESP = 2'b00; // OKAY
+            finish_item(req);
+            
+            // Read with SLVERR response
+            req = transaction#()::type_id::create("read_slverr_resp");
+            start_item(req);
+                req.OP = transaction#()::READ;
+                req.test_mode = test_modes[mode];
+                req.burst_type = transaction#()::SINGLE_BEAT;
+                req.arvalid_value = 1'b1;
+                req.rready_value = 1'b1;
+                req.RRESP = 2'b10; // SLVERR
+            finish_item(req);
+        end
+        `uvm_info(get_type_name(), "Protocol response coverage completed", UVM_LOW)
+    endtask
+endclass
+
 class boundary_memory_sequence extends uvm_sequence #(transaction);
     `uvm_object_utils(boundary_memory_sequence)
     
@@ -474,6 +541,8 @@ class boundary_memory_sequence extends uvm_sequence #(transaction);
     
     task body();
         transaction req;
+        int base_addr;
+        int violation_addr;
         
         `uvm_info(get_type_name(), "Starting boundary crossing and memory violation tests", UVM_LOW)
         
@@ -482,28 +551,25 @@ class boundary_memory_sequence extends uvm_sequence #(transaction);
             start_item(req);
             
             req.OP = (i % 2 == 0) ? transaction#()::WRITE : transaction#()::READ;
-            req.test_mode_t = transaction#()::BOUNDARY_CROSSING_MODE;
-            req.burst_type_t = transaction#()::LONG_BURST;
-            req.data_pattern_t = transaction#()::RANDOM_DATA;
+            req.test_mode = transaction#()::BOUNDARY_CROSSING_MODE;
+            req.burst_type = transaction#()::LONG_BURST;
+            req.data_pattern = transaction#()::RANDOM_DATA;
             
-            int base_addr = (4096 * i) - 64; // Close to 4KB boundary
+            base_addr = (4096 * i) - 64; // Close to 4KB boundary
             
-            if (req.OP == transaction#()::WRITE) 
-                begin
-                    req.AWADDR = base_addr;
-                    req.AWLEN = 32; // Long burst to cross boundary
-                    req.AWSIZE = 3'b010;
-                    req.awvalid_value = 1'b1;
-                    req.bready_value = 1'b1;
-                end 
-            else 
-                begin
-                    req.ARADDR = base_addr;
-                    req.ARLEN = 32;
-                    req.ARSIZE = 3'b010;
-                    req.arvalid_value = 1'b1;
-                    req.rready_value = 1'b1;
-                end
+            if (req.OP == transaction#()::WRITE) begin
+                req.AWADDR = base_addr;
+                req.AWLEN = 32; // Long burst to cross boundary
+                req.AWSIZE = 3'b010;
+                req.awvalid_value = 1'b1;
+                req.bready_value = 1'b1;
+            end else begin
+                req.ARADDR = base_addr;
+                req.ARLEN = 32;
+                req.ARSIZE = 3'b010;
+                req.arvalid_value = 1'b1;
+                req.rready_value = 1'b1;
+            end
             
             finish_item(req);
         end
@@ -513,28 +579,25 @@ class boundary_memory_sequence extends uvm_sequence #(transaction);
             start_item(req);
             
             req.OP = (i % 2 == 0) ? transaction#()::WRITE : transaction#()::READ;
-            req.test_mode_t = transaction#()::BOUNDARY_CROSSING_MODE;
-            req.burst_type_t = transaction#()::LONG_BURST;
-            req.data_pattern_t = transaction#()::RANDOM_DATA;
+            req.test_mode = transaction#()::BOUNDARY_CROSSING_MODE;
+            req.burst_type = transaction#()::LONG_BURST;
+            req.data_pattern = transaction#()::RANDOM_DATA;
             
-            int violation_addr = 1024 + (i * 100); // Beyond valid range
+            violation_addr = 1024 + (i * 100); // Beyond valid range
             
-            if (req.OP == transaction#()::WRITE) 
-                begin
-                    req.AWADDR = violation_addr << 2;
-                    req.AWLEN = 16;
-                    req.AWSIZE = 3'b010;
-                    req.awvalid_value = 1'b1;
-                    req.bready_value = 1'b1;
-                end 
-            else 
-                begin
-                    req.ARADDR = violation_addr << 2;
-                    req.ARLEN = 16;
-                    req.ARSIZE = 3'b010;
-                    req.arvalid_value = 1'b1;
-                    req.rready_value = 1'b1;
-                end
+            if (req.OP == transaction#()::WRITE) begin
+                req.AWADDR = violation_addr << 2;
+                req.AWLEN = 16;
+                req.AWSIZE = 3'b010;
+                req.awvalid_value = 1'b1;
+                req.bready_value = 1'b1;
+            end else begin
+                req.ARADDR = violation_addr << 2;
+                req.ARLEN = 16;
+                req.ARSIZE = 3'b010;
+                req.arvalid_value = 1'b1;
+                req.rready_value = 1'b1;
+            end
             
             finish_item(req);
         end
@@ -550,6 +613,7 @@ class comprehensive_coverage_sequence extends uvm_sequence #(transaction);
     data_pattern_coverage_sequence pattern_seq;
     handshake_coverage_sequence handshake_seq;
     boundary_memory_sequence mem_violation_seq;
+    protocol_response_coverage_sequence protocol_seq;
 
     function new(string name = "comprehensive_coverage_sequence");
         super.new(name);
@@ -563,6 +627,7 @@ class comprehensive_coverage_sequence extends uvm_sequence #(transaction);
         pattern_seq = data_pattern_coverage_sequence::type_id::create("pattern_seq");
         handshake_seq = handshake_coverage_sequence::type_id::create("handshake_seq");
         mem_violation_seq = boundary_memory_sequence::type_id::create("mem_violation_seq");
+        protocol_seq = protocol_response_coverage_sequence::type_id::create("protocol_seq");
 
         `uvm_info(get_type_name(), "Phase 1: Burst Type Coverage", UVM_LOW)
         burst_type_seq.start(m_sequencer);
