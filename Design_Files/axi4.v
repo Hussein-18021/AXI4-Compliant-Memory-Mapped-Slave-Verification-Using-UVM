@@ -61,8 +61,8 @@ module axi4 #(
     assign  read_addr_incr  = (1 << read_size);
     
     // Address boundary check (4KB boundary = 12 bits)
-    assign write_boundary_cross = ((write_addr & 12'hFFF) + (write_burst_cnt << write_size)) > 12'hFFF; //fixed the checking mechanism bug
-    assign read_boundary_cross = ((read_addr & 12'hFFF) + (read_burst_cnt << read_size)) > 12'hFFF; //fixed the checking mechanism bug
+    assign write_boundary_cross = ((AWADDR & 12'hFFF) + ((AWLEN+1) << AWSIZE)) > 12'hFFF; //fixed the checking mechanism bug
+    assign read_boundary_cross = ((ARADDR & 12'hFFF) + ((ARLEN+1) << ARSIZE)) > 12'hFFF; //fixed the checking mechanism bug
     
     // Address range check
     assign write_addr_valid = (write_addr >> 2) < MEMORY_DEPTH;
@@ -167,7 +167,7 @@ module axi4 #(
                 W_DATA: begin
                     if (WVALID && WREADY) begin
                         // Check if address is valid
-                        if (write_addr_valid && !write_boundary_cross) begin 
+                        if (write_addr_valid && !write_boundary_cross) begin
                             // Perform write operation
                             mem_en <= 1'b1;
                             mem_we <= 1'b1;
