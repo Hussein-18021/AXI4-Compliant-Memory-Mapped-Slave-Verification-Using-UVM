@@ -16,6 +16,12 @@ class test extends uvm_test;
     simple_read_sequence simple_rd_seq;
     comprehensive_coverage_sequence comprehensive_seq;
     mixed_operation_sequence mixed_seq;
+    burst_type_coverage_sequence burst_type_seq;
+    address_coverage_sequence addr_seq;
+    data_pattern_coverage_sequence pattern_seq;
+    handshake_coverage_sequence handshake_seq;
+    boundary_memory_sequence mem_violation_seq;
+
     
     `uvm_component_utils(test)
     
@@ -28,14 +34,20 @@ class test extends uvm_test;
         
         // Create environment
         env_ = env::type_id::create("env", this); 
+        m_cfg = common_cfg::type_id::create("m_cfg");
         
-        seq = _sequence::type_id::create("seq");
         simple_wr_seq = simple_write_sequence::type_id::create("simple_wr_seq");
         simple_rd_seq = simple_read_sequence::type_id::create("simple_rd_seq");
-        comprehensive_seq = comprehensive_coverage_sequence::type_id::create("comprehensive_seq");
-        mixed_seq = mixed_operation_sequence::type_id::create("mixed_seq");
+        seq = _sequence::type_id::create("seq");
         
-        m_cfg = common_cfg::type_id::create("m_cfg");
+        burst_type_seq = burst_type_coverage_sequence::type_id::create("burst_type_seq");
+        addr_seq = address_coverage_sequence::type_id::create("addr_seq");
+        pattern_seq = data_pattern_coverage_sequence::type_id::create("pattern_seq");
+        handshake_seq = handshake_coverage_sequence::type_id::create("handshake_seq");
+        mem_violation_seq = boundary_memory_sequence::type_id::create("mem_violation_seq");
+
+        mixed_seq = mixed_operation_sequence::type_id::create("mixed_seq");
+        comprehensive_seq = comprehensive_coverage_sequence::type_id::create("comprehensive_seq");
         
         `uvm_info(get_type_name(), "Test build phase - UVM_MEDIUM", UVM_MEDIUM)
         uvm_config_db#(common_cfg)::set(this, "*", "m_cfg", m_cfg);
@@ -55,27 +67,47 @@ class test extends uvm_test;
         
         fork
             begin
-                `uvm_info(get_type_name(), "=== PHASE 1: BASIC FUNCTIONALITY ===", UVM_LOW);
+                `uvm_info(get_type_name(), "=== PHASE: BASIC FUNCTIONALITY ===", UVM_LOW);
                 `uvm_info(get_type_name(), "Running simple write sequence", UVM_LOW);
                 simple_wr_seq.start(env_.agent_.sequencer_);
                 #50ns;
+
                 `uvm_info(get_type_name(), "Running simple read sequence", UVM_LOW);
                 simple_rd_seq.start(env_.agent_.sequencer_);
                 #50ns;
-        
-                // Phase 2: Mixed realistic traffic
-                `uvm_info(get_type_name(), "=== PHASE 2: MIXED TRAFFIC ===", UVM_LOW);
-                `uvm_info(get_type_name(), "Running mixed operation sequence", UVM_LOW);
-                mixed_seq.start(env_.agent_.sequencer_);
-                #200ns;
-            
-                // Phase 3: Final randomized traffic
-                `uvm_info(get_type_name(), "=== PHASE 3: RANDOMIZED TRAFFIC ===", UVM_LOW);
+                
+                `uvm_info(get_type_name(), "=== PHASE: RANDOMIZED TRAFFIC ===", UVM_LOW);
                 `uvm_info(get_type_name(), "Running main randomized sequence", UVM_LOW);
                 seq.start(env_.agent_.sequencer_);
                 #200ns;
 
-                 // Phase 4: Comprehensive coverage check (alternative approach)
+                `uvm_info(get_type_name(), "=== PHASE: Running Focused sequences ===", UVM_LOW);
+
+                `uvm_info(get_type_name(), "Running burst_type_seq", UVM_LOW);
+                burst_type_seq.start(env_.agent_.sequencer_);
+                #200ns;
+
+                `uvm_info(get_type_name(), "Running addr_seq sequence", UVM_LOW);
+                addr_seq.start(env_.agent_.sequencer_);
+                #200ns;
+
+                `uvm_info(get_type_name(), "Running pattern_seq sequence", UVM_LOW);
+                pattern_seq.start(env_.agent_.sequencer_);
+                #200ns;
+
+                `uvm_info(get_type_name(), "Running handshake_coverage_sequence", UVM_LOW);
+                handshake_seq.start(env_.agent_.sequencer_);
+                #200ns;
+
+                `uvm_info(get_type_name(), "Running memory violation sequence", UVM_LOW);
+                mem_violation_seq.start(env_.agent_.sequencer_);
+                #200ns;
+        
+                `uvm_info(get_type_name(), "=== PHASE: MIXED TRAFFIC ===", UVM_LOW);
+                `uvm_info(get_type_name(), "Running mixed operation sequence", UVM_LOW);
+                mixed_seq.start(env_.agent_.sequencer_);
+                #200ns;
+            
                  `uvm_info(get_type_name(), "=== COMPREHENSIVE COVERAGE SEQUENCE ===", UVM_LOW);
                  comprehensive_seq.start(env_.agent_.sequencer_);
                  #500ns;

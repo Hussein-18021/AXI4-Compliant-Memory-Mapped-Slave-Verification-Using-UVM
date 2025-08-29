@@ -18,11 +18,11 @@ class transaction #(int DATA_WIDTH = 32, int ADDR_WIDTH = 16, int MEMORY_DEPTH =
     rand data_pattern_t data_pattern;
     rand burst_type_t burst_type;
     
-    rand logic [ADDR_WIDTH-1:0] AWADDR, ARADDR;
+    randc logic [ADDR_WIDTH-1:0] AWADDR, ARADDR;
     rand logic [7:0] AWLEN, ARLEN;
     logic [2:0] AWSIZE, ARSIZE;
     
-    rand logic [DATA_WIDTH-1:0] WDATA[];  // For burst mode
+    randc logic [DATA_WIDTH-1:0] WDATA[];  // For burst mode
     logic [DATA_WIDTH-1:0] RDATA[];  //DUT's response
     
     rand logic AWVALID, WVALID, BREADY;
@@ -198,8 +198,6 @@ class transaction #(int DATA_WIDTH = 32, int ADDR_WIDTH = 16, int MEMORY_DEPTH =
     }
 
     constraint addr_range_targeting_c {
-        solve AWLEN before AWADDR;
-        solve ARLEN before ARADDR;
         
         if (test_mode == RANDOM_MODE) {
             AWADDR inside {[0:255], [256:511], [512:1023]};
@@ -208,9 +206,7 @@ class transaction #(int DATA_WIDTH = 32, int ADDR_WIDTH = 16, int MEMORY_DEPTH =
     }
 
     constraint boundary_targeting_c {
-        solve AWLEN before AWADDR;
-        solve ARLEN before ARADDR;
-        
+
         if (test_mode == BOUNDARY_CROSSING_MODE) {
             if (OP == WRITE) {
                 ((AWADDR & 12'hFFF) + ((AWLEN + 1) << AWSIZE)) > 12'hFFF;
@@ -255,9 +251,9 @@ class transaction #(int DATA_WIDTH = 32, int ADDR_WIDTH = 16, int MEMORY_DEPTH =
     
 
     constraint handshake_delay_c {
-        awvalid_delay inside {[0:1]};    
-        arvalid_delay inside {[0:1]};    
-        reset_cycles inside {[1:2]};     
+        awvalid_delay inside {[0:3]};    
+        arvalid_delay inside {[0:3]};    
+        reset_cycles inside {[1:5]};     
         
         awvalid_value dist {1 := 90, 0 := 10};     
         arvalid_value dist {1 := 90, 0 := 10};     
