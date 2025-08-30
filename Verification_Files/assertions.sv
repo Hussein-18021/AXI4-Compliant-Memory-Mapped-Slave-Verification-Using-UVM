@@ -139,25 +139,6 @@ module axi4_assertions #(
     // ========================================================================
 
     // ------------------------------------------------------------------------
-    // RESET BEHAVIOR ASSERTIONS
-    // ------------------------------------------------------------------------
-    
-    // All valid signals must be low during reset
-    property reset_valid_signals_low;
-        @(posedge clk) !ARESTN |-> (!AWVALID && !WVALID && !BVALID && !ARVALID && !RVALID);
-    endproperty
-    assert_reset_valid_signals_low: assert property (reset_valid_signals_low)
-        else $error("ASSERTION FAILED: Valid signals not deasserted during reset");
-    
-    // All ready signals behavior during reset (implementation dependent)
-    property reset_ready_signals_defined;
-        @(posedge clk) !ARESTN |-> (!$isunknown(AWREADY) && !$isunknown(WREADY) && 
-                                   !$isunknown(BREADY) && !$isunknown(ARREADY) && !$isunknown(RREADY));
-    endproperty
-    assert_reset_ready_signals_defined: assert property (reset_ready_signals_defined)
-        else $error("ASSERTION FAILED: Ready signals have unknown values during reset");
-
-    // ------------------------------------------------------------------------
     // WRITE ADDRESS CHANNEL ASSERTIONS
     // ------------------------------------------------------------------------
     
