@@ -217,7 +217,7 @@ class coverage_ extends uvm_component;
         `uvm_info("COVERAGE_REPORT", $sformatf("TOTAL COVERAGE:        %6.2f%%", total_cov), UVM_LOW)
         `uvm_info("COVERAGE_REPORT", "==========================================", UVM_LOW)
         
-        if (total_cov = 100.0) begin
+        if (total_cov == 100.0) begin
             `uvm_info("COVERAGE_REPORT", "*** COVERAGE TARGET ACHIEVED! ***", UVM_LOW)
         end else begin
             `uvm_warning("COVERAGE_REPORT", $sformatf("Coverage target not met (%.2f%% < 95.0%%)", total_cov))
