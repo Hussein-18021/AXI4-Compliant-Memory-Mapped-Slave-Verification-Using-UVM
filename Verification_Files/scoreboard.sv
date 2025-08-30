@@ -3,7 +3,7 @@
 `include "uvm_macros.svh"
 `include "transaction.sv"
 import uvm_pkg::*;
-
+import enumming::*;
 class scoreboard #(int DATA_WIDTH = 32, int ADDR_WIDTH = 16, int MEMORY_DEPTH = 1024) extends uvm_scoreboard;
     `uvm_component_utils(scoreboard)
     typedef transaction#(32, 16, 1024) transaction_t;
@@ -64,11 +64,11 @@ class scoreboard #(int DATA_WIDTH = 32, int ADDR_WIDTH = 16, int MEMORY_DEPTH = 
             total_tests++;
             generate_golden_model(req);
             case(req.OP)
-                transaction_t::WRITE: begin
+                WRITE: begin
                     write_count++;
                     check_write(req);
                 end
-                transaction_t::READ: begin
+                READ: begin
                     read_count++;
                     check_read(req);
                 end
@@ -81,8 +81,8 @@ class scoreboard #(int DATA_WIDTH = 32, int ADDR_WIDTH = 16, int MEMORY_DEPTH = 
         `uvm_info("GOLDEN", $sformatf("Generating golden model for %s transaction", req.OP.name()), UVM_HIGH)
         
         case(req.OP)
-            transaction_t::WRITE: generate_write_golden(req);
-            transaction_t::READ: generate_read_golden(req);
+            WRITE: generate_write_golden(req);
+            READ: generate_read_golden(req);
             default: `uvm_error("GOLDEN", $sformatf("Unknown operation: %s", req.OP.name()))
         endcase
     endfunction
@@ -100,7 +100,7 @@ class scoreboard #(int DATA_WIDTH = 32, int ADDR_WIDTH = 16, int MEMORY_DEPTH = 
         boundary_cross = ((current_addr & 12'hFFF) + ((req.AWLEN + 1) << req.AWSIZE)) > 12'hFFF;
         
         // Check address validity
-        addr_valid = (current_addr >> 2) < MEMORY_DEPTH;
+        addr_valid = (current_addr >> 2) + (req.AWLEN + 1) < MEMORY_DEPTH;
         
         `uvm_info("GOLDEN_WRITE", $sformatf("ADDR=0x%h, LEN=%0d, boundary_cross=%0b, addr_valid=%0b", 
                 current_addr, req.AWLEN, boundary_cross, addr_valid), UVM_MEDIUM)
@@ -149,7 +149,7 @@ class scoreboard #(int DATA_WIDTH = 32, int ADDR_WIDTH = 16, int MEMORY_DEPTH = 
         boundary_cross = ((current_addr & 12'hFFF) + ((req.ARLEN + 1) << req.ARSIZE)) > 12'hFFF;
         
         // Check address validity
-        addr_valid = (current_addr >> 2) < MEMORY_DEPTH;
+        addr_valid = (current_addr >> 2) + (req.ARLEN + 1) < MEMORY_DEPTH;
         
         `uvm_info("GOLDEN_READ", $sformatf("ADDR=0x%h, LEN=%0d, boundary_cross=%0b, addr_valid=%0b", 
                 current_addr, req.ARLEN, boundary_cross, addr_valid), UVM_MEDIUM)

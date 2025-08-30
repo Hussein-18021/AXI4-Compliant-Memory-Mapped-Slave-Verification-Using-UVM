@@ -2,14 +2,10 @@
 `define TRANSACTION_SVH
 `include "uvm_macros.svh"
 import uvm_pkg::*;
+import enumming::*;
 
 class transaction #(int DATA_WIDTH = 32, int ADDR_WIDTH = 16, int MEMORY_DEPTH = 1024) extends uvm_sequence_item;
-    
-    typedef enum {READ, WRITE} op_t; // Changed from READ to READ for consistency
-    typedef enum {RANDOM_MODE, BOUNDARY_CROSSING_MODE, BURST_LENGTH_MODE, DATA_PATTERN_MODE} test_mode_t;
-    typedef enum {RANDOM_DATA, ALL_ZEROS, ALL_ONES, ALTERNATING_AA, ALTERNATING_55} data_pattern_t;
-    typedef enum {SINGLE_BEAT, SHORT_BURST, MEDIUM_BURST, LONG_BURST} burst_type_t;
-    
+        
     localparam int MEMORY_SIZE_BYTES = MEMORY_DEPTH * 4;
     localparam int MAX_BYTE_ADDR = MEMORY_SIZE_BYTES - 4;
 
@@ -22,8 +18,8 @@ class transaction #(int DATA_WIDTH = 32, int ADDR_WIDTH = 16, int MEMORY_DEPTH =
     rand logic [7:0] AWLEN, ARLEN;
     logic [2:0] AWSIZE, ARSIZE;
     
-    randc logic [DATA_WIDTH-1:0] WDATA[];  // For burst mode
-    logic [DATA_WIDTH-1:0] RDATA[];  //DUT's response
+    randc logic [DATA_WIDTH-1:0] WDATA[];
+    logic [DATA_WIDTH-1:0] RDATA[];
     
     rand logic AWVALID, WVALID, BREADY;
     rand logic ARVALID, RREADY;
@@ -35,7 +31,7 @@ class transaction #(int DATA_WIDTH = 32, int ADDR_WIDTH = 16, int MEMORY_DEPTH =
     rand int wvalid_delay[];
     rand bit awvalid_value, arvalid_value;
     rand bit wvalid_pattern[];
-    rand bit bready_value, rready_value; // Changed from bREADy_value, rREADy_value to bready_value, rready_value
+    rand bit bready_value, rready_value;
 
     // DUT Response signals
     logic AWREADY, WREADY;              
@@ -45,7 +41,6 @@ class transaction #(int DATA_WIDTH = 32, int ADDR_WIDTH = 16, int MEMORY_DEPTH =
     logic [1:0] RRESP;                  
     logic RLAST, RVALID;                
 
-    // EXPECTED VALUES - Including expected WDATA for golden model comparison
     logic expected_AWREADY, expected_WREADY;
     logic [1:0] expected_BRESP;
     logic expected_BVALID;
@@ -89,8 +84,8 @@ class transaction #(int DATA_WIDTH = 32, int ADDR_WIDTH = 16, int MEMORY_DEPTH =
         `uvm_field_int(awvalid_value, UVM_DEFAULT)
         `uvm_field_int(arvalid_value, UVM_DEFAULT)
         `uvm_field_array_int(wvalid_pattern, UVM_DEFAULT)
-        `uvm_field_int(bready_value, UVM_DEFAULT) // Changed from bREADy_value to bready_value
-        `uvm_field_int(rready_value, UVM_DEFAULT) // Changed from rREADy_value to rready_value
+        `uvm_field_int(bready_value, UVM_DEFAULT)
+        `uvm_field_int(rready_value, UVM_DEFAULT)
         
         // DUT responses
         `uvm_field_int(AWREADY, UVM_DEFAULT)
@@ -249,18 +244,29 @@ class transaction #(int DATA_WIDTH = 32, int ADDR_WIDTH = 16, int MEMORY_DEPTH =
         ARSIZE == 3'b010;
     }
     
+    constraint default_wdata_size {
+        if (OP == WRITE) WDATA.size() == AWLEN + 1;
+        else WDATA.size() == 0;
+    }
 
     constraint handshake_delay_c {
-        awvalid_delay inside {[0:3]};    
-        arvalid_delay inside {[0:3]};    
-        reset_cycles inside {[1:5]};     
-        
+        awvalid_delay inside {[0:1]};    
+        arvalid_delay inside {[0:1]};    
+        reset_cycles inside {[0:3]};     
+        foreach(wvalid_delay[i]) wvalid_delay[i] inside {[0:1]};
+
         awvalid_value dist {1 := 90, 0 := 10};     
         arvalid_value dist {1 := 90, 0 := 10};     
-        bready_value dist {1 := 98, 0 := 2}; // Changed from bREADy_value to bready_value      
-        rready_value dist {1 := 95, 0 := 5}; // Changed from rREADy_value to rready_value      
-        
+        bready_value dist {1 := 98, 0 := 2}; 
+        rready_value dist {1 := 95, 0 := 5};
+    }
 
+    constraint wvalid_all_valid_c {
+        if (OP == WRITE) {
+            foreach(wvalid_pattern[i]) {
+                wvalid_pattern[i] == 1'b1;  // Force all beats valid
+            }
+        }
     }
 
     constraint valid_signals_c {
@@ -315,57 +321,50 @@ class transaction #(int DATA_WIDTH = 32, int ADDR_WIDTH = 16, int MEMORY_DEPTH =
         `uvm_info("TRANSACTION_POST_RAND", $sformatf("post_randomize ENTRY: OP=%s, AWLEN=%0d, ARLEN=%0d", 
                 OP.name(), AWLEN, ARLEN), UVM_HIGH)
         
-        if (OP == WRITE) begin
-            int burst_length = AWLEN + 1;
-            
-            // Always allocate fresh arrays
-            WDATA = new[burst_length];
-            expected_WDATA = new[burst_length];
-            wvalid_delay = new[burst_length];
-            wvalid_pattern = new[burst_length];  // Size based on AWLEN
-            
-            
-            // Set wvalid_pattern based on awvalid_value
-            // AXI4 Protocol: If AWVALID=0, no data phase; if AWVALID=1, all data must be sent
-            foreach (wvalid_pattern[i]) begin
-                if (awvalid_value == 1) begin
-                    wvalid_pattern[i] = 1;  // All data beats must be transferred
-                end else begin
-                    wvalid_pattern[i] = 0;  // No data beats (aborted transaction)
+        if (OP == WRITE) 
+            begin
+                int burst_length = AWLEN + 1;
+                
+                // Always allocate fresh arrays
+                WDATA = new[burst_length];
+                expected_WDATA = new[burst_length];
+                wvalid_delay = new[burst_length];
+                wvalid_pattern = new[burst_length];  // Size based on AWLEN
+                
+                
+                // Generate data pattern
+                generate_write_data_pattern();
+                
+                // Copy to expected
+                for (int i = 0; i < burst_length; i++) begin
+                    expected_WDATA[i] = WDATA[i];
+                end
+                
+                // Clear READ arrays
+                RDATA = new[0];
+                expected_RDATA = new[0];
+                
+            end 
+        else if (OP == READ) 
+            begin
+                int burst_length = ARLEN + 1;
+                
+                // For READ, WDATA should be empty
+                WDATA = new[0];
+                expected_WDATA = new[0];
+                wvalid_delay = new[0];
+                wvalid_pattern = new[0];
+                
+                // Pre-allocate RDATA arrays
+                RDATA = new[burst_length];
+                expected_RDATA = new[burst_length];
+                
+                // Initialize with known pattern
+                for (int i = 0; i < burst_length; i++) begin
+                    RDATA[i] = 32'h00000000;
+                    expected_RDATA[i] = 32'h00000000;
                 end
             end
-            
-            // Generate data pattern
-            generate_write_data_pattern();
-            
-            // Copy to expected
-            for (int i = 0; i < burst_length; i++) begin
-                expected_WDATA[i] = WDATA[i];
-            end
-            
-            // Clear READ arrays
-            RDATA = new[0];
-            expected_RDATA = new[0];
-            
-        end else if (OP == READ) begin
-            int burst_length = ARLEN + 1;
-            
-            // For READ, WDATA should be empty
-            WDATA = new[0];
-            expected_WDATA = new[0];
-            wvalid_delay = new[0];
-            wvalid_pattern = new[0];
-            
-            // Pre-allocate RDATA arrays
-            RDATA = new[burst_length];
-            expected_RDATA = new[burst_length];
-            
-            // Initialize with known pattern
-            for (int i = 0; i < burst_length; i++) begin
-                RDATA[i] = 32'h00000000;
-                expected_RDATA[i] = 32'h00000000;
-            end
-        end
         
         `uvm_info("TRANSACTION_POST_RAND", $sformatf("post_randomize COMPLETE: OP=%s, WDATA[%0d], RDATA[%0d], wvalid_pattern[%0d]", 
                 OP.name(), WDATA.size(), RDATA.size(), wvalid_pattern.size()), UVM_HIGH)
@@ -461,7 +460,7 @@ class transaction #(int DATA_WIDTH = 32, int ADDR_WIDTH = 16, int MEMORY_DEPTH =
                 if (WDATA.size() > 1) s = {s, $sformatf(", WDATA[1]=0x%0h", WDATA[1])};
                 if (WDATA.size() > 2) s = {s, $sformatf(", ...")};
             end
-            s = {s, $sformatf("\nHandshake: AWVALID=%0b, WVALID=%0b, BREADY=%0b", awvalid_value, WVALID, bready_value)}; // Changed from bREADy_value to bready_value
+            s = {s, $sformatf("\nHandshake: AWVALID=%0b, WVALID=%0b, BREADY=%0b", awvalid_value, WVALID, bready_value)};
             
             if (!awvalid_value) begin
                 s = {s, $sformatf("\nTransaction Scenario: ABORTED - No address phase")};

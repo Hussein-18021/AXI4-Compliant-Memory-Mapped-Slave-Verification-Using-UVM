@@ -4,6 +4,7 @@
 `include "transaction.sv"
 `include "common_cfg.sv"
 import uvm_pkg::*;
+import enumming::*;
 
 class monitor extends uvm_monitor;
     `uvm_component_utils(monitor)
@@ -11,7 +12,6 @@ class monitor extends uvm_monitor;
     virtual intf vif;
     uvm_analysis_port #(transaction) ap;
     
-    // DEBUG: Add counters
     int write_transactions_sent = 0;
     int read_transactions_sent = 0;
     int write_transactions_started = 0;
@@ -53,7 +53,7 @@ class monitor extends uvm_monitor;
                 `uvm_info("MON_DEBUG", $sformatf("=== WRITE TRANSACTION STARTED #%0d ===", write_transactions_started), UVM_LOW)
                 
                 tr = transaction#()::type_id::create("write_tr");
-                tr.OP = transaction#()::WRITE;
+                tr.OP = WRITE;
                 tr.AWADDR = vif.AWADDR;
                 tr.AWLEN = vif.AWLEN;
                 tr.AWSIZE = vif.AWSIZE;
@@ -91,7 +91,7 @@ class monitor extends uvm_monitor;
                 `uvm_info("MON_DEBUG", $sformatf("=== READ TRANSACTION STARTED #%0d ===", read_transactions_started), UVM_LOW)
                 
                 tr = transaction#()::type_id::create("read_tr");
-                tr.OP = transaction#()::READ;
+                tr.OP = READ;
                 tr.ARADDR = vif.ARADDR;
                 tr.ARLEN = vif.ARLEN;
                 tr.ARSIZE = vif.ARSIZE;

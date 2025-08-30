@@ -4,9 +4,8 @@
 `include "transaction.sv"
 `include "common_cfg.sv"
 import uvm_pkg::*;
-
+import enumming::*;
 typedef transaction#(32, 16, 1024) transaction_t;
-
 class driver extends uvm_driver #(transaction_t);
     
     `uvm_component_utils(driver)
@@ -55,13 +54,14 @@ class driver extends uvm_driver #(transaction_t);
             `uvm_info("DRV", $sformatf("=== RECEIVED TRANSACTION ===\n%s", req.convert2string()), UVM_MEDIUM)
 
             case(req.OP)
-                transaction_t::WRITE: begin
+                WRITE: begin
                     `uvm_info("DRV", "Processing WRITE transaction", UVM_HIGH)
                     total_write_transactions++;
                     total_write_beats += req.AWLEN + 1;
                     drive_write_transaction(req, actual_tx);
                 end
-                transaction_t::READ: begin
+                
+                READ: begin
                     `uvm_info("DRV", "Processing READ transaction", UVM_HIGH)
                     total_read_transactions++;
                     total_read_beats += req.ARLEN + 1;
@@ -108,18 +108,19 @@ class driver extends uvm_driver #(transaction_t);
         actual_tx.AWADDR = tr.AWADDR;
         actual_tx.AWLEN = tr.AWLEN;
         actual_tx.AWSIZE = tr.AWSIZE;
-        actual_tx.WDATA = new[tr.WDATA.size()];
+        actual_tx.WDATA = new[tr.AWLEN + 1];
         
-        foreach (tr.WDATA[i]) 
+        for (int i = 0; i <= tr.AWLEN; i++) begin
             actual_tx.WDATA[i] = tr.WDATA[i];
+        end
 
         if (tr.awvalid_delay > 0) begin
             repeat(tr.awvalid_delay) @(posedge vif.ACLK);
         end
 
 
-        `uvm_info("DRV", $sformatf("Starting address phase: AWADDR=0x%h, AWLEN=%0d, AWSIZE=%0d", 
-                tr.AWADDR, tr.AWLEN, tr.AWSIZE), UVM_MEDIUM)
+        `uvm_info("DRV", $sformatf("Starting address phase: AWADDR=0x%h, AWLEN=%0d, AWSIZE=%0d, AWVALID=%0d", 
+                tr.AWADDR, tr.AWLEN, tr.AWSIZE, tr.AWVALID), UVM_MEDIUM)
         
         if (tr.awvalid_value) 
             begin
@@ -128,9 +129,14 @@ class driver extends uvm_driver #(transaction_t);
                 vif.AWSIZE  <= tr.AWSIZE;
                 vif.AWVALID <= 1'b1;
                 
-                @(posedge vif.ACLK);
+                forever begin
+                    @(posedge vif.ACLK);
+                    if (vif.AWREADY && vif.AWVALID) begin
+                        break;
+                    end
+                end
                 vif.AWVALID <= 1'b0;
-                `uvm_info("DRV", "Address handshake completed", UVM_HIGH)
+                `uvm_info("DRV", "Address handshake completed", UVM_MEDIUM)
             end 
         else 
             begin
@@ -141,49 +147,31 @@ class driver extends uvm_driver #(transaction_t);
                 return;
             end
 
-        // DATA PHASE - Wait for DUT to transition W_IDLE -> W_ADDR -> W_DATA
         `uvm_info("DRV", "Starting data phase", UVM_MEDIUM)
 
-        // Wait one clock for DUT state transition to W_DATA (where WREADY=1)
-        @(posedge vif.ACLK);
-
-        foreach (tr.WDATA[i]) begin
+        for (int i = 0; i <= tr.AWLEN; i++) begin
             if (tr.wvalid_delay[i] > 0) begin
                 repeat(tr.wvalid_delay[i]) @(posedge vif.ACLK);
             end
             
             vif.WDATA  <= tr.WDATA[i];
-            vif.WLAST  <= (i == tr.WDATA.size() - 1);
-            vif.WVALID <= tr.wvalid_pattern[i];
+            vif.WLAST  <= (i == tr.AWLEN) ? 1'b1 : 1'b0;
+            vif.WVALID <= 1'b1;
             
-            if (tr.wvalid_pattern[i]) begin
-                // Now WREADY should be available since DUT is in W_DATA state
-                timeout_counter = 0;
-                while (!(vif.WVALID && vif.WREADY)) begin
-                    @(posedge vif.ACLK);
-                    timeout_counter++;
-                    if (timeout_counter >= MAX_TIMEOUT) begin
-                        `uvm_info("DRV", $sformatf("TIMEOUT: WREADY not received for beat %0d", i), UVM_MEDIUM)
-                        vif.WVALID <= 1'b0;
-                        vif.WLAST <= 1'b0;
-                        return;
-                    end
-                end
-                
-                @(posedge vif.ACLK);  // Complete handshake
-                `uvm_info("DRV", $sformatf("Data beat %0d completed: 0x%h", i, tr.WDATA[i]), UVM_HIGH)
-            end else begin
+            forever begin
                 @(posedge vif.ACLK);
+                if (vif.WREADY && vif.WVALID) begin
+                    break;
+                end
             end
             
             vif.WVALID <= 1'b0;
             vif.WLAST <= 1'b0;
+            `uvm_info("DRV", $sformatf("Data beat %0d completed: 0x%h", i, tr.WDATA[i]), UVM_MEDIUM)
         end
 
-        // RESPONSE PHASE - DUT transitions to W_RESP state after last data beat
         `uvm_info("DRV", "Starting response phase", UVM_HIGH)
         
-        // DUT asserts BVALID in W_RESP state (may take 1 cycle after WLAST)
         timeout_counter = 0;
         while (!vif.BVALID) begin
             @(posedge vif.ACLK);
@@ -197,18 +185,21 @@ class driver extends uvm_driver #(transaction_t);
         bresp_captured = vif.BRESP;
         `uvm_info("DRV", $sformatf("BVALID asserted, BRESP: %s", decode_response(bresp_captured)), UVM_MEDIUM)
         
-        // Complete response handshake
         if (tr.bready_value) 
             begin
                 vif.BREADY <= 1'b1;
-                @(posedge vif.ACLK);  // DUT transitions back to W_IDLE
+                while (!(vif.BVALID && vif.BREADY)) begin
+                    @(posedge vif.ACLK);
+                end
+                @(posedge vif.ACLK);
                 vif.BREADY <= 1'b0;
             end 
         else 
             begin
-                // Delayed response acceptance
+                // BREADY not asserted - response ignored
                 vif.BREADY <= 1'b0;
                 repeat($urandom_range(2, 5)) @(posedge vif.ACLK);
+                `uvm_info("DRV", "Write response ignored - BREADY not asserted", UVM_MEDIUM)
                 vif.BREADY <= 1'b1;
                 @(posedge vif.ACLK);
                 vif.BREADY <= 1'b0;
@@ -228,6 +219,7 @@ class driver extends uvm_driver #(transaction_t);
         `uvm_info("DRV", $sformatf("Write transaction complete: BRESP=%s", 
                  decode_response(bresp_captured)), UVM_MEDIUM)
     endtask
+    
 
     task automatic drive_read_transaction(input transaction_t tr, ref transaction_t actual_tx);
         int timeout_counter;
@@ -254,8 +246,12 @@ class driver extends uvm_driver #(transaction_t);
                 vif.ARSIZE  <= tr.ARSIZE;
                 vif.ARVALID <= 1'b1;
                 
-                // Single clock cycle - handshake completes immediately since ARREADY=1 in IDLE
-                @(posedge vif.ACLK);
+                forever begin
+                    @(posedge vif.ACLK);
+                    if (vif.ARREADY && vif.ARVALID) begin
+                        break;
+                    end
+                end
                 vif.ARVALID <= 1'b0;
                 `uvm_info("DRV", "Read address handshake completed", UVM_HIGH)
             end 
@@ -313,11 +309,14 @@ class driver extends uvm_driver #(transaction_t);
                     vif.RREADY <= 1'b0;
                     repeat($urandom_range(2, 5)) @(posedge vif.ACLK);
                     vif.RREADY <= 1'b1;
+                    while (!(vif.RVALID && vif.RREADY)) begin
+                        @(posedge vif.ACLK);
+                    end
+                    actual_tx.RDATA[i] = vif.RDATA;
+                    actual_tx.RRESP = vif.RRESP;
                     @(posedge vif.ACLK);
                     vif.RREADY <= 1'b0;
-                    
-                    actual_tx.RDATA[i] = 32'h00000000;
-                    actual_tx.RRESP = 2'b00;
+                    `uvm_info("DRV", "Delayed RREADY - data captured after backpressure", UVM_MEDIUM)
                 end
         end
         
@@ -347,8 +346,7 @@ class driver extends uvm_driver #(transaction_t);
         `uvm_info("DRV_STATS", $sformatf("Failed Transactions:      %0d", failed_transactions), UVM_LOW)
         `uvm_info("DRV_STATS", $sformatf("OKAY Responses:           %0d", okay_count), UVM_LOW)
         `uvm_info("DRV_STATS", $sformatf("SLVERR Responses:         %0d", slverr_count), UVM_LOW)
-        `uvm_info("DRV_STATS", $sformatf("Failed Tests:             %0d", failed_tests), UVM_LOW)
-        
+
         if (total_write_transactions > 0) begin
             real avg_write_burst = real'(total_write_beats) / real'(total_write_transactions);
             `uvm_info("DRV_STATS", $sformatf("Average Write Burst Size: %.2f", avg_write_burst), UVM_LOW)

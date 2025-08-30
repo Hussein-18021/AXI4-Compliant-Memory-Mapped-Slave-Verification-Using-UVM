@@ -6,12 +6,47 @@ module top;
     
     localparam int DATA_WIDTH = 32;
     localparam int ADDR_WIDTH = 16;
+    localparam int MEMORY_DEPTH = 1024;
+    localparam int MAX_BURST_LENGTH = 20;
+
 
     intf #(DATA_WIDTH, ADDR_WIDTH) vif();
 
     axi4 #(.DATA_WIDTH(DATA_WIDTH), .ADDR_WIDTH(ADDR_WIDTH)) dut (
         .ACLK    (vif.ACLK),
         .ARESETn (vif.ARESETn),
+        .AWADDR  (vif.AWADDR),
+        .AWLEN   (vif.AWLEN),
+        .AWSIZE  (vif.AWSIZE),
+        .AWVALID (vif.AWVALID),
+        .AWREADY (vif.AWREADY),
+        .WDATA   (vif.WDATA),
+        .WLAST   (vif.WLAST),
+        .WVALID  (vif.WVALID),
+        .WREADY  (vif.WREADY),
+        .BRESP   (vif.BRESP),
+        .BVALID  (vif.BVALID),
+        .BREADY  (vif.BREADY),
+        .ARADDR  (vif.ARADDR),
+        .ARLEN   (vif.ARLEN),
+        .ARSIZE  (vif.ARSIZE),
+        .ARVALID (vif.ARVALID),
+        .ARREADY (vif.ARREADY),
+        .RDATA   (vif.RDATA),
+        .RRESP   (vif.RRESP),
+        .RLAST   (vif.RLAST),
+        .RVALID  (vif.RVALID),
+        .RREADY  (vif.RREADY)
+    );
+
+    axi4_assertions #(
+        .DATA_WIDTH(DATA_WIDTH),
+        .ADDR_WIDTH(ADDR_WIDTH), 
+        .MEMORY_DEPTH(MEMORY_DEPTH),
+        .MAX_BURST_LENGTH(MAX_BURST_LENGTH)
+    ) axi_assertions (
+        .clk    (vif.ACLK),
+        .ARESTN (vif.ARESETn),
         .AWADDR  (vif.AWADDR),
         .AWLEN   (vif.AWLEN),
         .AWSIZE  (vif.AWSIZE),
