@@ -6,11 +6,13 @@ Verification_Files/env.sv
 Verification_Files/intf.sv
 Verification_Files/monitor.sv
 Verification_Files/pkg.sv
+Verification_Files/enum_pkg.sv
 Verification_Files/scoreboard.sv
 Verification_Files/sequence.sv
 Verification_Files/sequencer.sv
 Verification_Files/test.sv
 Verification_Files/top.sv
 Verification_Files/transaction.sv
+Verification_Files/assertions.sv
 Design_Files/axi4.v
 Design_Files/axi_memory.v
