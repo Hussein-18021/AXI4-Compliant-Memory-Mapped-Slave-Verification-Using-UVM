@@ -529,22 +529,6 @@ module axi4_assertions #(
     endproperty
     cover_boundary_crossing_read: cover property (boundary_crossing_read);
     
-    // Assertion counter for debugging
-    int assertion_pass_count = 0;
-    int assertion_fail_count = 0;
-    
-    // Final report task (to be called at end of simulation)
-    task display_assertion_report();
-        $display("========================================");
-        $display("AXI4 ASSERTION VERIFICATION REPORT");
-        $display("========================================");
-        $display("Total Assertions Passed: %0d", assertion_pass_count);
-        $display("Total Assertions Failed: %0d", assertion_fail_count);
-        $display("Overall Pass Rate: %0.1f%%", 
-                 (assertion_pass_count * 100.0) / (assertion_pass_count + assertion_fail_count));
-        $display("========================================");
-    endtask
-
 endmodule
 
 
