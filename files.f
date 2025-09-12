@@ -1,3 +1,4 @@
+Verification_Files/enum_pkg.sv
 Verification_Files/agent.sv
 Verification_Files/common_cfg.sv
 Verification_Files/coverage.sv
@@ -6,7 +7,6 @@ Verification_Files/env.sv
 Verification_Files/intf.sv
 Verification_Files/monitor.sv
 Verification_Files/pkg.sv
-Verification_Files/enum_pkg.sv
 Verification_Files/scoreboard.sv
 Verification_Files/sequence.sv
 Verification_Files/sequencer.sv
