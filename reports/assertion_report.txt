@@ -1,0 +1,221 @@
+Coverage Report by instance with details
+
+=================================================================================
+=== Instance: /top/axi_assertions
+=== Design Unit: work.axi4_assertions
+=================================================================================
+
+Assertion Coverage:
+    Assertions                      33        22        11    66.66%
+--------------------------------------------------------------------------------------------------------------------------------
+Name                 File(Line)                   Failure      Pass     Vacuous    Disable    Attempt     Active Peak Active ATV
+                                                  Count        Count    Count      Count      Count       Count  Count          
+--------------------------------------------------------------------------------------------------------------------------------
+/top/axi_assertions/assert_awvalid_stable
+                     Verification_Files/assertions.sv(150)
+                                                        0         24     409691          0     409715          0           1 off
+/top/axi_assertions/assert_awaddr_stable
+                     Verification_Files/assertions.sv(158)
+                                                        0         24     409691          0     409715          0           1 off
+/top/axi_assertions/assert_awlen_stable
+                     Verification_Files/assertions.sv(166)
+                                                        0         24     409691          0     409715          0           1 off
+/top/axi_assertions/assert_awsize_stable
+                     Verification_Files/assertions.sv(174)
+                                                        0         24     409691          0     409715          0           1 off
+/top/axi_assertions/assert_awsize_valid
+                     Verification_Files/assertions.sv(182)
+                                                        0      13339     396376          0     409715          0           1 off
+/top/axi_assertions/assert_wvalid_stable
+                     Verification_Files/assertions.sv(194)
+                                                        0      13315     396400          0     409715          0           1 off
+/top/axi_assertions/assert_wdata_stable
+                     Verification_Files/assertions.sv(202)
+                                                        0      13315     396400          0     409715          0           1 off
+/top/axi_assertions/assert_wlast_stable
+                     Verification_Files/assertions.sv(210)
+                                                        0      13315     396400          0     409715          0           1 off
+/top/axi_assertions/assert_wlast_on_last_beat
+                     Verification_Files/assertions.sv(219)
+                                                        0      13315     396400          0     409715          0           1 off
+/top/axi_assertions/assert_wlast_not_early
+                     Verification_Files/assertions.sv(228)
+                                                        0      65140     344575          0     409715          0           1 off
+/top/axi_assertions/assert_write_data_follows_address
+                     Verification_Files/assertions.sv(236)
+                                                        0          0     409715          0     409715          0           0 off
+/top/axi_assertions/assert_bvalid_stable
+                     Verification_Files/assertions.sv(248)
+                                                        0      13658     396057          0     409715          0           2 off
+/top/axi_assertions/assert_bresp_stable
+                     Verification_Files/assertions.sv(256)
+                                                        0      13658     396057          0     409715          0           2 off
+/top/axi_assertions/assert_write_response_follows_data
+                     Verification_Files/assertions.sv(264)
+                                                        0          0     409715          0     409715          0           0 off
+/top/axi_assertions/assert_bresp_valid
+                     Verification_Files/assertions.sv(272)
+                                                        0      26973     382742          0     409715          0           1 off
+/top/axi_assertions/assert_arvalid_stable
+                     Verification_Files/assertions.sv(284)
+                                                        0          0     409715          0     409715          0           0 off
+/top/axi_assertions/assert_araddr_stable
+                     Verification_Files/assertions.sv(292)
+                                                        0          0     409715          0     409715          0           0 off
+/top/axi_assertions/assert_arlen_stable
+                     Verification_Files/assertions.sv(300)
+                                                        0          0     409715          0     409715          0           0 off
+/top/axi_assertions/assert_arsize_stable
+                     Verification_Files/assertions.sv(308)
+                                                        0          0     409715          0     409715          0           0 off
+/top/axi_assertions/assert_arsize_valid
+                     Verification_Files/assertions.sv(316)
+                                                        0      12334     397381          0     409715          0           1 off
+/top/axi_assertions/assert_rvalid_stable
+                     Verification_Files/assertions.sv(328)
+                                                        0      76185     333530          0     409715          0           2 off
+/top/axi_assertions/assert_rlast_on_last_beat
+                     Verification_Files/assertions.sv(337)
+                                                        0      12334     397381          0     409715          0           1 off
+/top/axi_assertions/assert_rlast_not_early
+                     Verification_Files/assertions.sv(346)
+                                                        0      60002     349713          0     409715          0           1 off
+/top/axi_assertions/assert_read_data_follows_address
+                     Verification_Files/assertions.sv(354)
+                                                        0          0     409715          0     409715          0           0 off
+/top/axi_assertions/assert_rresp_valid
+                     Verification_Files/assertions.sv(362)
+                                                        0     148521     261194          0     409715          0           1 off
+/top/axi_assertions/assert_write_addr_range_okay
+                     Verification_Files/assertions.sv(379)
+                                                        0          0     409715          0     409715          0           0 off
+/top/axi_assertions/assert_read_addr_range_okay
+                     Verification_Files/assertions.sv(387)
+                                                        0          0     409715          0     409715          0           0 off
+/top/axi_assertions/assert_write_4kb_boundary_error
+                     Verification_Files/assertions.sv(396)
+                                                        0          0     409715          0     409715          0           0 off
+/top/axi_assertions/assert_read_4kb_boundary_error
+                     Verification_Files/assertions.sv(404)
+                                                        0          0     409715          0     409715          0           0 off
+/top/axi_assertions/assert_write_addr_alignment
+                     Verification_Files/assertions.sv(416)
+                                                        0      13315     396400          0     409715          0           1 off
+/top/axi_assertions/assert_read_addr_alignment
+                     Verification_Files/assertions.sv(423)
+                                                        0      12334     397381          0     409715          0           1 off
+/top/axi_assertions/assert_write_beats_match_awlen
+                     Verification_Files/assertions.sv(435)
+                                                        0      13315     396400          0     409715          0           1 off
+/top/axi_assertions/assert_read_beats_match_arlen
+                     Verification_Files/assertions.sv(443)
+                                                        0      12334     397381          0     409715          0           1 off
+
+
+ASSERTION RESULTS:
+--------------------------------------------------------------------------------------------------------------------------------
+Name                 File(Line)                   Failure      Pass     Vacuous    Disable    Attempt     Active Peak Active ATV
+                                                  Count        Count    Count      Count      Count       Count  Count          
+--------------------------------------------------------------------------------------------------------------------------------
+/top/axi_assertions/assert_awvalid_stable
+                     Verification_Files/assertions.sv(150)
+                                                        0         24     409691          0     409715          0           1 off
+/top/axi_assertions/assert_awaddr_stable
+                     Verification_Files/assertions.sv(158)
+                                                        0         24     409691          0     409715          0           1 off
+/top/axi_assertions/assert_awlen_stable
+                     Verification_Files/assertions.sv(166)
+                                                        0         24     409691          0     409715          0           1 off
+/top/axi_assertions/assert_awsize_stable
+                     Verification_Files/assertions.sv(174)
+                                                        0         24     409691          0     409715          0           1 off
+/top/axi_assertions/assert_awsize_valid
+                     Verification_Files/assertions.sv(182)
+                                                        0      13339     396376          0     409715          0           1 off
+/top/axi_assertions/assert_wvalid_stable
+                     Verification_Files/assertions.sv(194)
+                                                        0      13315     396400          0     409715          0           1 off
+/top/axi_assertions/assert_wdata_stable
+                     Verification_Files/assertions.sv(202)
+                                                        0      13315     396400          0     409715          0           1 off
+/top/axi_assertions/assert_wlast_stable
+                     Verification_Files/assertions.sv(210)
+                                                        0      13315     396400          0     409715          0           1 off
+/top/axi_assertions/assert_wlast_on_last_beat
+                     Verification_Files/assertions.sv(219)
+                                                        0      13315     396400          0     409715          0           1 off
+/top/axi_assertions/assert_wlast_not_early
+                     Verification_Files/assertions.sv(228)
+                                                        0      65140     344575          0     409715          0           1 off
+/top/axi_assertions/assert_write_data_follows_address
+                     Verification_Files/assertions.sv(236)
+                                                        0          0     409715          0     409715          0           0 off
+/top/axi_assertions/assert_bvalid_stable
+                     Verification_Files/assertions.sv(248)
+                                                        0      13658     396057          0     409715          0           2 off
+/top/axi_assertions/assert_bresp_stable
+                     Verification_Files/assertions.sv(256)
+                                                        0      13658     396057          0     409715          0           2 off
+/top/axi_assertions/assert_write_response_follows_data
+                     Verification_Files/assertions.sv(264)
+                                                        0          0     409715          0     409715          0           0 off
+/top/axi_assertions/assert_bresp_valid
+                     Verification_Files/assertions.sv(272)
+                                                        0      26973     382742          0     409715          0           1 off
+/top/axi_assertions/assert_arvalid_stable
+                     Verification_Files/assertions.sv(284)
+                                                        0          0     409715          0     409715          0           0 off
+/top/axi_assertions/assert_araddr_stable
+                     Verification_Files/assertions.sv(292)
+                                                        0          0     409715          0     409715          0           0 off
+/top/axi_assertions/assert_arlen_stable
+                     Verification_Files/assertions.sv(300)
+                                                        0          0     409715          0     409715          0           0 off
+/top/axi_assertions/assert_arsize_stable
+                     Verification_Files/assertions.sv(308)
+                                                        0          0     409715          0     409715          0           0 off
+/top/axi_assertions/assert_arsize_valid
+                     Verification_Files/assertions.sv(316)
+                                                        0      12334     397381          0     409715          0           1 off
+/top/axi_assertions/assert_rvalid_stable
+                     Verification_Files/assertions.sv(328)
+                                                        0      76185     333530          0     409715          0           2 off
+/top/axi_assertions/assert_rlast_on_last_beat
+                     Verification_Files/assertions.sv(337)
+                                                        0      12334     397381          0     409715          0           1 off
+/top/axi_assertions/assert_rlast_not_early
+                     Verification_Files/assertions.sv(346)
+                                                        0      60002     349713          0     409715          0           1 off
+/top/axi_assertions/assert_read_data_follows_address
+                     Verification_Files/assertions.sv(354)
+                                                        0          0     409715          0     409715          0           0 off
+/top/axi_assertions/assert_rresp_valid
+                     Verification_Files/assertions.sv(362)
+                                                        0     148521     261194          0     409715          0           1 off
+/top/axi_assertions/assert_write_addr_range_okay
+                     Verification_Files/assertions.sv(379)
+                                                        0          0     409715          0     409715          0           0 off
+/top/axi_assertions/assert_read_addr_range_okay
+                     Verification_Files/assertions.sv(387)
+                                                        0          0     409715          0     409715          0           0 off
+/top/axi_assertions/assert_write_4kb_boundary_error
+                     Verification_Files/assertions.sv(396)
+                                                        0          0     409715          0     409715          0           0 off
+/top/axi_assertions/assert_read_4kb_boundary_error
+                     Verification_Files/assertions.sv(404)
+                                                        0          0     409715          0     409715          0           0 off
+/top/axi_assertions/assert_write_addr_alignment
+                     Verification_Files/assertions.sv(416)
+                                                        0      13315     396400          0     409715          0           1 off
+/top/axi_assertions/assert_read_addr_alignment
+                     Verification_Files/assertions.sv(423)
+                                                        0      12334     397381          0     409715          0           1 off
+/top/axi_assertions/assert_write_beats_match_awlen
+                     Verification_Files/assertions.sv(435)
+                                                        0      13315     396400          0     409715          0           1 off
+/top/axi_assertions/assert_read_beats_match_arlen
+                     Verification_Files/assertions.sv(443)
+                                                        0      12334     397381          0     409715          0           1 off
+
+Total Coverage By Instance (filtered view): 66.66%
+
