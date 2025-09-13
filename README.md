@@ -527,6 +527,8 @@ The simulation run provides a detailed transcript as follows:
 **Repository**: AXI4-Compliant-Memory-Mapped-Slave-Verification-Using-UVM 
 **Version**: 1.0  
 **Last Updated**: September 2025  
-
+**Author**: Hussein Hassan
+**Email**: hussein.hassan02@eng-st.cu.edu.eg
 If you have any questions or support, please open an issue in the repository.
+
 
