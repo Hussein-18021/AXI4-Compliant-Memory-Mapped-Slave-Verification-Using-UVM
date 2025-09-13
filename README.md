@@ -106,6 +106,9 @@ Verification_Files/
 ├── sequence.sv           # Test sequences
 ├── sequencer.sv          # UVM sequencer
 └── transaction.sv        # Transaction class
+└── top.sv                # top module class
+└── assertions.sv         # assertions module
+
 ```
 
 ### Design Files
@@ -150,7 +153,7 @@ logic [1:0] BRESP, RRESP;
 - **Protocol Constraints**: Valid signal timing and handshake behavior
 
 ### Driver (`driver.sv`)
-Implements comprehensive AXI4 protocol driving with:
+Implements the comprehensive AXI4 protocol driving with:
 
 #### Write Transaction Flow
 1. **Address Phase**: Drive AWADDR, AWLEN, AWSIZE with AWVALID
@@ -188,7 +191,7 @@ logic [DATA_WIDTH-1:0] golden_memory [MEMORY_DEPTH];
 - **Statistics**: Pass/fail rates, error analysis
 
 ### Coverage (`coverage.sv`)
-Multi-dimensional functional coverage including:
+Multi-dimensional functional coverage, including:
 
 #### Coverage Groups
 ```systemverilog
@@ -291,6 +294,9 @@ The environment provides detailed coverage reports:
 [COVERAGE_REPORT] *** COVERAGE TARGET ACHIEVED! ***
 ```
 
+<img width="1208" height="185" alt="image" src="https://github.com/user-attachments/assets/2f795450-dade-449d-be71-e0cdbde4c57d" />
+
+
 ### Coverage Gaps Detection
 Automatic detection of coverage holes with recommendations:
 - Insufficient burst type variety
@@ -298,24 +304,14 @@ Automatic detection of coverage holes with recommendations:
 - Missing data patterns
 - Incomplete handshake scenarios
 
-## Building and Running
+### Assertions Analysis
+The environment provides a detailed assertions report, showing none of the assertions ever failed.
 
-### Prerequisites
-- SystemVerilog simulator (QuestaSim)
-- UVM library (IEEE 1800.2 compatible)
-- Make utility
+<img width="1523" height="790" alt="image" src="https://github.com/user-attachments/assets/beb50c2b-9339-4981-bcb5-30b2fad573e8" />
 
-### Compilation
-```bash
-# Compile design and verification files and optimize them
-vlog -f files.f +cover -covercells
-vopt top -o opt +acc
-```
+### Cover Directives
+<img width="1275" height="219" alt="image" src="https://github.com/user-attachments/assets/c7e1f94a-185d-4bb4-978d-28a86c3c7895" />
 
-### Execution
-```bash
-vsim -c opt -assertdebug -do "add wave /top/dut/*; coverage save -onexit cov.ucdb; run -all; coverage report -details -output cov_report.txt" -cover
-```
 
 ## Configuration
 
@@ -342,6 +338,35 @@ uvm_config_db#(uvm_active_passive_enum)::set(null, "*", "is_active", UVM_ACTIVE)
 // Configure interface
 uvm_config_db#(virtual intf)::set(null, "*", "intf", vif);
 ```
+## Building and Running
+
+### Prerequisites
+- SystemVerilog simulator (i.e., QuestaSim)
+- UVM library (IEEE 1800.2 compatible)
+- Make utility
+
+### Compilation
+```bash
+# Compile design and verification files and optimize them
+vlog -f files.f +cover -covercells
+vopt top -o opt +acc
+```
+
+### Execution
+```bash
+vsim -c opt -assertdebug -do "add wave /top/dut/*; coverage save -onexit cov.ucdb; run -all; coverage report -details -output cov_report.txt" -cover
+```
+
+### Waveform
+- Write transaction - burst mode - AWLEN=3 (no. of beats = 4)
+
+<img width="1891" height="756" alt="image" src="https://github.com/user-attachments/assets/5c48f115-28d7-4271-9ab8-d45e5efe9f86" />
+
+- Read transaction - burst mode - AWLEN=15 (no. of beats = 16)
+
+<img width="1886" height="433" alt="image" src="https://github.com/user-attachments/assets/e58a72f1-fc53-4d5a-bc02-f2acddc43bd6" />
+
+
 ### Simulation Analysis
 The simulation run provides a detailed transcript as follows:
 
@@ -504,3 +529,4 @@ The simulation run provides a detailed transcript as follows:
 **Last Updated**: September 2025  
 
 If you have any questions or support, please open an issue in the repository.
+
